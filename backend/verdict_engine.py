@@ -14,7 +14,9 @@ CONTRADICTING_KEYWORDS = [
     "conspiracy", "misidentified", "out of context",
     "misattributed", "manipulated", "doctored", "fabricated",
     "fake news", "baseless", "unsubstantiated", "claim is false",
-    "verdict: false", "rating: false", "pants on fire"
+    "verdict: false", "rating: false", "pants on fire","vaccine misinformation", "health misinformation",
+"spread of false", "viral false", "contain no", "no chip",
+"no microchip", "does not contain", "scientists say false"
 ]
 
 SUPPORTING_KEYWORDS = [
@@ -22,7 +24,8 @@ SUPPORTING_KEYWORDS = [
     "evidence shows", "study shows", "researchers found",
     "officials confirmed", "announced", "launched successfully",
     "report confirms", "data shows", "science confirms",
-    "verdict: true", "rating: true", "mostly true"
+    "verdict: true", "rating: true", "mostly true","mission accomplished", "successfully launched",
+"confirmed launch", "took off", "lifted off"
 ]
 
 def classify_stance(snippet: str, title: str) -> str:
