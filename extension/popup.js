@@ -104,6 +104,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function getCredibilityLabel(cred) {
+        if (cred >= 0.85) return 'HIGH';
+        if (cred >= 0.65) return 'MEDIUM';
+        return 'LOW';
+    }
+
     function displayResult(result) {
         progressSection.classList.add('hidden');
         verdictSection.classList.remove('hidden');
@@ -140,8 +146,33 @@ document.addEventListener('DOMContentLoaded', function() {
         
         sourcesList.innerHTML = '';
         result.sources.forEach(source => {
+            const sourceName = source.source || source.title || 'Source';
+            const linkSpan = document.createElement('span');
+            linkSpan.className = 'source-link';
+            linkSpan.textContent = sourceName;
+            linkSpan.style.cursor = 'pointer';
+            linkSpan.title = source.url;
+            
+            linkSpan.addEventListener('click', (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                chrome.tabs.create({url: source.url});
+            });
+            
+            const credSpan = document.createElement('span');
+            credSpan.textContent = ` (${getCredibilityLabel(source.credibility)})`;
+            credSpan.style.color = '#6b7280';
+            
+            const stanceSpan = document.createElement('span');
+            stanceSpan.textContent = ` — ${source.stance}`;
+            stanceSpan.style.color = '#6b7280';
+            
             const li = document.createElement('li');
-            li.innerHTML = `<a href="${source.url}" target="_blank">${source.name}</a> — ${source.stance}`;
+            li.appendChild(linkSpan);
+            li.appendChild(credSpan);
+            li.appendChild(stanceSpan);
+            li.style.cursor = 'pointer';
+            
             sourcesList.appendChild(li);
         });
     }
