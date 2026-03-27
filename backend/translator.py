@@ -18,11 +18,13 @@ def detect_lang(text: str) -> str:
         return 'en'
 
 def translate_to_en(text: str, source_lang: str) -> str:
-    """Translates text from source_lang to English."""
+    """Translates text to English safely using Google's native auto-detect."""
     if source_lang == 'en':
         return text
     try:
-        translated = GoogleTranslator(source=source_lang, target='en').translate(text)
+        # We enforce source='auto' because langdetect often misidentifies short foreign sentences
+        # (e.g. thinking Turkish is German). Google's internal 'auto' is incredibly accurate.
+        translated = GoogleTranslator(source='auto', target='en').translate(text)
         return translated if translated else text
     except Exception as e:
         print(f"[Translator] Translation to EN failed: {e}")

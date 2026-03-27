@@ -67,8 +67,23 @@ STRICT RULES:
 - NO outro.
 - NO formatting, bullet points, or newlines."""
 
+        import requests
+        target_model = "local-model"
+        try:
+            m_resp = requests.get("http://localhost:1234/v1/models", timeout=3)
+            m_data = m_resp.json()
+            loaded_models = [m["id"] for m in m_data.get("data", [])]
+            if loaded_models:
+                # Prioritize a reasoning model (like DeepSeek) for fact-checking explanation!
+                loaded_models.sort(key=lambda x: 0 if "deepseek" in x.lower() or "r1" in x.lower() else 1)
+                target_model = loaded_models[0]
+        except Exception:
+            pass
+
+        print(f"[Explainer] Routing prompt to LM Studio reasoning model: {target_model}")
+
         response = await client.chat.completions.create(
-            model="local-model",
+            model=target_model,
             messages=[
                 {"role": "system", "content": "You are a data-to-text pipeline. You output only the requested sentences. You never use conversational filler."},
                 {"role": "user", "content": prompt}

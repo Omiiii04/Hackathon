@@ -124,14 +124,4 @@ async def verify(body: VerifyRequest):
 
     result = await run_pipeline(claim)
 
-    if source_lang != 'en':
-        print(f"[API] Translating output back to '{source_lang}'...")
-        result.explanation = translate_from_en(result.explanation, source_lang)
-        result.localized_verdict = translate_verdict(result.verdict, source_lang)
-        
-        if result.sub_claims:
-            for sc in result.sub_claims:
-                sc["text"] = translate_from_en(sc["text"], source_lang)
-                sc["localized_verdict"] = translate_verdict(sc["verdict"], source_lang)
-
     return result.to_dict()
