@@ -1,45 +1,44 @@
 # backend/verdict_engine.py
 import math
 from typing import List
+from transformers import pipeline
 from models import EvidenceItem, VerdictResult
 from credibility import get_credibility_score, get_credibility_label
 
 # ─────────────────────────────────────────────
-# STANCE CLASSIFIER
+# STANCE CLASSIFIER (BART-MNLI)
 # ─────────────────────────────────────────────
-CONTRADICTING_KEYWORDS = [
-    "false", "debunked", "misleading", "misinformation",
-    "no evidence", "incorrect", "wrong", "unfounded",
-    "fact check", "not true", "disproven", "myth", "hoax",
-    "conspiracy", "misidentified", "out of context",
-    "misattributed", "manipulated", "doctored", "fabricated",
-    "fake news", "baseless", "unsubstantiated", "claim is false",
-    "verdict: false", "rating: false", "pants on fire","vaccine misinformation", "health misinformation",
-"spread of false", "viral false", "contain no", "no chip",
-"no microchip", "does not contain", "scientists say false"
-]
+# Update this to the local folder path where your downloaded model is stored.
+# If you used HuggingFace's default caching, you can keep it as "facebook/bart-large-mnli".
+LOCAL_MODEL_PATH = r"C:\Users\Admin\Desktop\VIT_Hackathon\models\bart_mnli" 
 
-SUPPORTING_KEYWORDS = [
-    "confirmed", "verified", "true", "accurate", "correct",
-    "evidence shows", "study shows", "researchers found",
-    "officials confirmed", "announced", "launched successfully",
-    "report confirms", "data shows", "science confirms",
-    "verdict: true", "rating: true", "mostly true","mission accomplished", "successfully launched",
-"confirmed launch", "took off", "lifted off"
-]
+print(f"[System] Loading BART-MNLI model from: {LOCAL_MODEL_PATH} ...")
+stance_classifier = pipeline(
+    "zero-shot-classification", 
+    model=LOCAL_MODEL_PATH,
+    device=-1 # Note: Change to 0 if you have a GPU and PyTorch configured for it
+)
 
-def classify_stance(snippet: str, title: str) -> str:
+def classify_stance(snippet: str, title: str, claim: str) -> str:
     """
-    Classifies evidence as SUPPORTING, CONTRADICTING, or NEUTRAL.
+    Classifies evidence as SUPPORTING, CONTRADICTING, or NEUTRAL using Zero-Shot NLI.
     """
-    text = f"{snippet} {title}".lower()
+    text = f"{title}. {snippet}"
+    candidate_labels = ["supports the claim", "contradicts the claim", "neutral or unrelated"]
+    
+    # Test the text against the specific claim
+    result = stance_classifier(text, candidate_labels, hypothesis_template=f"This text {{}} that {claim}.")
+    
+    top_label = result['labels'][0]
+    score = result['scores'][0]
 
-    contra_hits  = sum(1 for kw in CONTRADICTING_KEYWORDS if kw in text)
-    support_hits = sum(1 for kw in SUPPORTING_KEYWORDS if kw in text)
-
-    if contra_hits > support_hits:   return "CONTRADICTING"
-    if support_hits > contra_hits:   return "SUPPORTING"
-    return "NEUTRAL"
+    # Confidence threshold: fallback to NEUTRAL if the model isn't highly confident
+    if score < 0.50 or "neutral" in top_label:
+        return "NEUTRAL"
+    elif "supports" in top_label:
+        return "SUPPORTING"
+    else:
+        return "CONTRADICTING"
 
 # ─────────────────────────────────────────────
 # RECENCY FACTOR
@@ -74,9 +73,9 @@ def compute_verdict(evidence: List[EvidenceItem], claim: str) -> VerdictResult:
     # ── Step 2: Score and classify each item ────────────────────────
     for item in evidence:
         item.credibility = get_credibility_score(item.url, item.source)
-        item.stance      = classify_stance(item.snippet, item.title)
+        # Pass the claim into the new BART classifier
+        item.stance      = classify_stance(item.snippet, item.title, claim)
         
-        # FIX: Dynamically fetch days_ago if it exists on the item, else default to 30
         days_ago = getattr(item, 'published_days_ago', 30) 
         item.score = item.credibility * recency_factor(days_ago)
 
@@ -100,14 +99,12 @@ def compute_verdict(evidence: List[EvidenceItem], claim: str) -> VerdictResult:
     if all(e.credibility < 0.50 for e in evidence):
         verdict = "UNVERIFIED"
     elif active == 0: 
-        # FIX: If there is no supporting or contradicting evidence, it's unverified.
         verdict = "UNVERIFIED"
     elif ratio >= 0.75 and tier1_count >= 1:
         verdict = "TRUE"
     elif ratio <= 0.25 and tier1_count >= 1:
         verdict = "FALSE"
     elif 0.40 <= ratio <= 0.60: 
-        # FIX: A ~50/50 split implies conflicting data, regardless of tier 1 counts.
         verdict = "CONFLICTING"
     elif 0.25 < ratio < 0.75:
         verdict = "MISLEADING"
@@ -134,7 +131,7 @@ def compute_verdict(evidence: List[EvidenceItem], claim: str) -> VerdictResult:
         for e in top3
     ]
 
-    # ── Step 10: Algorithm trace (for judges) ──────────────────────
+    # ── Step 10: Algorithm trace ──────────────────────
     trace = {
         "support_ratio":        round(ratio, 3),
         "evidence_count":       n,
@@ -157,21 +154,3 @@ def compute_verdict(evidence: List[EvidenceItem], claim: str) -> VerdictResult:
         sources=sources_out,
         algorithm_trace=trace
     )
-
-# ─────────────────────────────────────────────
-# TEST: Run directly
-# python verdict_engine.py
-# ─────────────────────────────────────────────
-# if __name__ == "__main__":
-#     from models import EvidenceItem
-#     # Mock evidence for testing
-#     test_evidence = [
-#         EvidenceItem("Reuters: COVID vaccine chips false", "No evidence of microchips", "https://reuters.com/fact-check/1", "Reuters"),
-#         EvidenceItem("BBC: Vaccine misinformation", "Claims are debunked by scientists", "https://bbc.com/news/1", "BBC"),
-#         EvidenceItem("Wikipedia: COVID-19 vaccine", "mRNA vaccines contain no microchips", "https://en.wikipedia.org/wiki/COVID-19_vaccine", "Wikipedia"),
-#     ]
-#     result = compute_verdict(test_evidence, "COVID vaccines contain microchips")
-#     print(f"Verdict: {result.verdict}")
-#     print(f"Confidence: {result.confidence}")
-#     print(f"Support ratio: {result.support_ratio}")
-#     print(f"Trace: {result.algorithm_trace}")
