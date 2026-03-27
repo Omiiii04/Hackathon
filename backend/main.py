@@ -2,7 +2,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import time
+import asyncio
+from pipeline import run_pipeline
 
 app = FastAPI(
     title="OSINT Verify API",
@@ -36,19 +37,6 @@ def health():
 
 @app.post("/verify")
 async def verify(body: VerifyRequest):
-    """Main endpoint — stub for now, will wire to pipeline in Hour 8."""
-    # Hardcoded for testing during Hour 0–8
-    return {
-        "verdict":        "FALSE",
-        "confidence":     0.84,
-        "explanation":    "Test response — AI pipeline not connected yet.",
-        "support_ratio":  0.08,
-        "evidence_count": 11,
-        "sources": [
-            {"title": "Test Source", "url": "https://example.com",
-             "source": "Test", "credibility": "HIGH", "stance": "CONTRADICTING"}
-        ],
-        "algorithm_trace": {"support_ratio": 0.08, "evidence_count": 11, "tier1_count": 3},
-        "cached": False,
-        "processing_time_ms": 100
-    }
+    """Main endpoint — full pipeline."""
+    result = await run_pipeline(body.claim)
+    return result.to_dict()

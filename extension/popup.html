@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>OSINT Verify</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">OSINT Verify</div>
+            <div class="tagline">Rumor Verification Platform</div>
+        </header>
+
+        <div id="input-section">
+            <textarea id="claim-input" placeholder="Enter claim to verify..."></textarea>
+            <button id="verify-btn">Verify Claim</button>
+        </div>
+
+        <div id="progress-section" class="hidden">
+            <div class="progress-bar-container">
+                <div id="progress-bar" style="width: 0%"></div>
+            </div>
+            <div id="status-message">Initializing...</div>
+        </div>
+
+        <div id="verdict-section" class="hidden">
+            <div id="verdict-badge" class="badge">FALSE</div>
+            <div class="confidence-container">
+                <span class="label">Confidence:</span>
+                <span id="confidence-value">84%</span>
+            </div>
+            <div id="explanation"></div>
+            
+            <div id="subclaims-container"></div>
+            
+            <div id="sources-section">
+                <h3>Top Sources</h3>
+                <ul id="sources-list"></ul>
+            </div>
+
+            <button id="reset-btn">New Verification</button>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
