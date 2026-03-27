@@ -89,7 +89,7 @@ async def run_pipeline(claim: str) -> VerdictResult:
           f"Ratio: {result.support_ratio}")
 
     # ── Step 3: Generate Explanation ─────────────────────────────
-    print("[3/3] Generating explanation via Gemini...")
+    print("[3/3] Generating explanation via LLM...")
     result.explanation = await generate_explanation(
         claim=claim,
         verdict=result.verdict,
@@ -112,7 +112,7 @@ async def run_pipeline(claim: str) -> VerdictResult:
 if __name__ == "__main__":
     async def test_all():
         test_claims = [
-            ("Iran lost the war in 2025",                    "FALSE"),
+            ("Iran lost the war",                    "FALSE"),
             ("NASA confirmed alien life",             "UNVERIFIED"),
             ("COVID vaccines contain microchips",     "FALSE"),
             ("Artemis mission launched in 2022",      "TRUE"),

@@ -1,50 +1,33 @@
 # backend/explainer.py
 import os
-from dotenv import load_dotenv
-
-# NEW IMPORTS: Switch to the new google.genai package
-from google import genai
-from google.genai import types
-
-load_dotenv()
-
-# Initialize the new Client. 
-# It automatically looks for the GEMINI_API_KEY environment variable.
-client = genai.Client()
+import re
+from openai import AsyncOpenAI
 
 # ─────────────────────────────────────────────
-# RULE-BASED FALLBACK (always works, no API needed)
+# LM STUDIO CLIENT SETUP
+# ─────────────────────────────────────────────
+client = AsyncOpenAI(
+    base_url="http://localhost:1234/v1",
+    api_key="lm-studio"
+)
+
+# ─────────────────────────────────────────────
+# RULE-BASED FALLBACK
 # ─────────────────────────────────────────────
 FALLBACK_TEMPLATES = {
-    "TRUE": (
-        "Multiple credible sources confirm this claim is accurate. "
-        "The evidence consistently supports the statement."
-    ),
-    "FALSE": (
-        "Multiple credible sources contradict this claim. "
-        "The evidence consistently shows this statement is inaccurate."
-    ),
-    "MISLEADING": (
-        "The evidence presents a mixed or incomplete picture. "
-        "While some aspects may be accurate, the claim lacks important context or contains distortions."
-    ),
-    "CONFLICTING": (
-        "High-credibility sources genuinely disagree on this claim. "
-        "There is real debate among reliable outlets, and a definitive verdict cannot be reached."
-    ),
-    "UNVERIFIED": (
-        "Insufficient credible evidence was found to verify or refute this claim. "
-        "This does not mean the claim is false — it means we could not find enough sources."
-    ),
+    "TRUE": "Multiple credible sources confirm this claim is accurate. The evidence consistently supports the statement.",
+    "FALSE": "Multiple credible sources contradict this claim. The evidence consistently shows this statement is inaccurate.",
+    "MISLEADING": "The evidence presents a mixed or incomplete picture. While some aspects may be accurate, the claim lacks important context or contains distortions.",
+    "CONFLICTING": "High-credibility sources genuinely disagree on this claim. There is real debate among reliable outlets, and a definitive verdict cannot be reached.",
+    "UNVERIFIED": "Insufficient credible evidence was found to verify or refute this claim. This does not mean the claim is false — it means we could not find enough sources.",
 }
 
 async def generate_explanation(claim: str, verdict: str,
                                 top_sources: list,
                                 algorithm_trace: dict) -> str:
     """
-    Calls Gemini to generate a 2-sentence explanation using the new SDK.
-    Temperature=0.0 — locked, no creative drift.
-    Falls back to template if API fails.
+    Calls a local LLM via LM Studio to generate a 2 to 4 sentence explanation.
+    Includes programmatic truncation to handle overly chatty local models.
     """
     try:
         source_names = [s.get("source", s.get("title", ""))[:30] for s in top_sources[:3]]
@@ -56,82 +39,60 @@ async def generate_explanation(claim: str, verdict: str,
         tier1    = algorithm_trace.get("tier1_count", 0)
 
         prompt = f"""You are a professional fact-checker.
-A deterministic algorithm has already computed the verdict for this claim.
-Your ONLY task: write exactly 2 clear sentences explaining this verdict.
+A deterministic algorithm has computed the verdict.
+Write exactly 2 to 4 sentences explaining the verdict based on the data below.
 
 CLAIM: {claim}
 ALGORITHM VERDICT: {verdict}
-SUPPORT RATIO: {ratio} (higher = more evidence supports the claim)
+SUPPORT RATIO: {ratio}
 SOURCES CONSULTED: {source_str}
-SUPPORTING EVIDENCE COUNT: {sup_cnt}
-CONTRADICTING EVIDENCE COUNT: {con_cnt}
+SUPPORTING EVIDENCE: {sup_cnt}
+CONTRADICTING EVIDENCE: {con_cnt}
 HIGH-CREDIBILITY SOURCES: {tier1}
 
 STRICT RULES:
-- Do NOT change or question the verdict
-- Do NOT add any information not present above
-- Write for a general audience (no technical jargon)
-- Maximum 60 words total
-- Do not use bullet points or lists
+- Output ONLY the 2-4 sentences.
+- NO intro (e.g., do not say "Here is the explanation").
+- NO outro.
+- NO formatting, bullet points, or newlines."""
 
-Write only the 2-sentence explanation. Nothing else."""
-
-# NEW SDK SYNTAX: Use client.aio for async calls
-        response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview", 
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.0,
-                max_output_tokens=150,
-                # ── UPDATE: Change from BLOCK_ONLY_HIGH to BLOCK_NONE ──
-                safety_settings=[
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                        threshold="BLOCK_NONE",
-                    ),
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_HARASSMENT",
-                        threshold="BLOCK_NONE",
-                    ),
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_HATE_SPEECH",
-                        threshold="BLOCK_NONE",
-                    ),
-                    types.SafetySetting(
-                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        threshold="BLOCK_NONE",
-                    )
-                ]
-            )
+        response = await client.chat.completions.create(
+            model="local-model",
+            messages=[
+                {"role": "system", "content": "You are a data-to-text pipeline. You output only the requested sentences. You never use conversational filler."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.0,
+            max_tokens=500  # ── Bumped up to allow room for the thinking process!
         )
         
-        # ── ADD THIS: Debug the finish reason so we aren't flying blind ──
-        if response.candidates:
-            finish_reason = response.candidates[0].finish_reason
-            # A normal, successful generation has a finish_reason of 'STOP'
-            if str(finish_reason) != "STOP":
-                print(f"[Explainer] Gemini aborted generation! Reason: {finish_reason}")
-        
-        # Safely extract text (in case it was completely blocked and text is None)
-        text = response.text.strip() if response.text else ""
+        raw_text = response.choices[0].message.content.strip()
 
-        # Our length check to catch anything weird
-        if len(text) > 400 or len(text) < 50:
-            print(f"[Explainer] Response too short/long. Length: {len(text)}. Using fallback.")
+        # ── THE FIX: Remove everything inside <think> and </think> ──
+        # flags=re.DOTALL ensures it deletes across multiple lines
+        raw_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
+
+        # 1. Remove common chatty prefixes the model might still try to use
+        raw_text = re.sub(r"^(Here is|The explanation is|Based on the).{0,50}:\s*", "", raw_text, flags=re.IGNORECASE)
+        
+        # 2. Split the text into sentences based on punctuation (.!?)
+        sentences = re.split(r'(?<=[.!?]) +', raw_text)
+        
+        # 3. Forcefully keep only the first 4 sentences and join them back together
+        clean_text = " ".join(sentences[:4]).strip()
+        
+        # ── UPDATE 3: Relaxed Sanity Check ──
+        # If it's still weirdly short or somehow massive, we fall back.
+        if len(clean_text) > 800 or len(clean_text) < 20:
+            print(f"[Explainer] Response length out of bounds ({len(clean_text)} chars). Using fallback.")
             return FALLBACK_TEMPLATES.get(verdict, FALLBACK_TEMPLATES["UNVERIFIED"])
 
-        return text
+        return clean_text
 
     except Exception as e:
-        # This will catch network errors, blocked content, or missing API keys
-        print(f"[Explainer] Gemini failed: {e} — using fallback template")
+        print(f"[Explainer] Local LLM failed: {e} — using fallback template")
         return FALLBACK_TEMPLATES.get(verdict, FALLBACK_TEMPLATES["UNVERIFIED"])
 
-
-# ─────────────────────────────────────────────
-# TEST: Run directly
-# python explainer.py
-# ─────────────────────────────────────────────
 if __name__ == "__main__":
     import asyncio
 
@@ -143,6 +104,7 @@ if __name__ == "__main__":
             algorithm_trace={"support_ratio": 0.08, "tier1_count": 3,
                              "supporting_count": 1, "contradicting_count": 10}
         )
-        print("Explanation:", explanation)
+        print("\nFinal Explanation:")
+        print(explanation)
 
     asyncio.run(test())
