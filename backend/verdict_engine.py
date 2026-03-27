@@ -10,14 +10,22 @@ from credibility import get_credibility_score, get_credibility_label
 # ─────────────────────────────────────────────
 # Update this to the local folder path where your downloaded model is stored.
 # If you used HuggingFace's default caching, you can keep it as "facebook/bart-large-mnli".
-LOCAL_MODEL_PATH = r"C:\Users\Admin\Desktop\VIT_Hackathon\models\bart_mnli" 
+# ─────────────────────────────────────────────
+# STANCE CLASSIFIER — loaded once at import time
+# main.py's lifespan hook imports this module on
+# startup, so the model is ALWAYS ready before
+# the first request arrives.
+# ─────────────────────────────────────────────
+LOCAL_MODEL_PATH = r"C:\Users\Admin\Desktop\VIT_Hackathon\models\bart_mnli"
 
-print(f"[System] Loading BART-MNLI model from: {LOCAL_MODEL_PATH} ...")
-stance_classifier = pipeline(
-    "zero-shot-classification", 
-    model=LOCAL_MODEL_PATH,
-    device=-1 # Note: Change to 0 if you have a GPU and PyTorch configured for it
-)
+if "stance_classifier" not in dir():   # guard: only load once per process
+    print(f"[VerdictEngine] Loading BART-MNLI from: {LOCAL_MODEL_PATH} …")
+    stance_classifier = pipeline(
+        "zero-shot-classification",
+        model=LOCAL_MODEL_PATH,
+        device=-1   # set to 0 for GPU
+    )
+    print("[VerdictEngine] BART-MNLI loaded ✅")
 
 def classify_stance(snippet: str, title: str, claim: str) -> str:
     """
