@@ -27,10 +27,12 @@ class VerdictResult:
     processing_time_ms: int = 0
     sub_claims:       List[dict] = field(default_factory=list)   # per-subclaim breakdown
     is_compound:      bool = False                                # True if claim was split
+    localized_verdict: Optional[str] = None                       # Present if translated
 
     def to_dict(self) -> dict:
         return {
             "verdict":            self.verdict,
+            "localized_verdict":  self.localized_verdict,
             "confidence":         self.confidence,
             "explanation":        self.explanation,
             "support_ratio":      self.support_ratio,

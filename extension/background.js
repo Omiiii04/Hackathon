@@ -53,24 +53,33 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id:       'verifyClaim',
     title:    'Verify with OSINT',
-    contexts: ['selection']
+    contexts: ['selection', 'image']
   });
 });
 
 chrome.contextMenus.onClicked.addListener((info) => {
   if (info.menuItemId === 'verifyClaim') {
-    chrome.storage.local.set({ lastSelectedClaim: info.selectionText }, () => {
-      openOsintWindow(info.selectionText);
-    });
+    if (info.mediaType === 'image') {
+      chrome.storage.local.set({ lastSelectedImage: info.srcUrl }, () => {
+        openOsintWindow();
+      });
+    } else {
+      chrome.storage.local.set({ lastSelectedClaim: info.selectionText }, () => {
+        openOsintWindow(info.selectionText);
+      });
+    }
   }
 });
 
 // ── Message handler ───────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'getClaim') {
-    chrome.storage.local.get(['lastSelectedClaim'], (result) => {
-      sendResponse({ claim: result.lastSelectedClaim || '' });
-      chrome.storage.local.remove(['lastSelectedClaim']);
+    chrome.storage.local.get(['lastSelectedClaim', 'lastSelectedImage'], (result) => {
+      sendResponse({ 
+          claim: result.lastSelectedClaim || '',
+          imageUrl: result.lastSelectedImage || ''
+      });
+      chrome.storage.local.remove(['lastSelectedClaim', 'lastSelectedImage']);
     });
     return true;   // keep channel open for async response
   }

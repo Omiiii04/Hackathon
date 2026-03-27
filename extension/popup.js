@@ -7,8 +7,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const progressSection = document.getElementById('progress-section');
     const verdictSection  = document.getElementById('verdict-section');
 
+    const modeTextBtn     = document.getElementById('mode-text-btn');
+    const modeImageBtn    = document.getElementById('mode-image-btn');
+    const wrapText        = document.getElementById('wrap-text');
+    const wrapImage       = document.getElementById('wrap-image');
+    
     const claimInput      = document.getElementById('claim-input');
     const charCount       = document.getElementById('char-count');
+    
+    const imageUploadArea = document.getElementById('image-upload-area');
+    const imageFileInput  = document.getElementById('image-file-input');
+    const imagePreview    = document.getElementById('image-preview');
+    const imagePlaceholder= document.getElementById('image-placeholder');
+    const imageFilename   = document.getElementById('image-filename');
+
     const verifyBtn       = document.getElementById('verify-btn');
     const resetBtn        = document.getElementById('reset-btn');
 
@@ -33,36 +45,105 @@ document.addEventListener('DOMContentLoaded', function () {
         charCount.textContent = claimInput.value.length;
     });
 
+    // ── Mode Toggling ───────────────────────────────────
+    let currentMode = 'text';
+    let currentImageBase64 = null;
+    let currentImageUrl = null;
+
+    modeTextBtn.addEventListener('click', () => {
+        currentMode = 'text';
+        modeTextBtn.classList.add('active');
+        modeImageBtn.classList.remove('active');
+        wrapText.classList.remove('hidden');
+        wrapImage.classList.add('hidden');
+    });
+
+    modeImageBtn.addEventListener('click', () => {
+        currentMode = 'image';
+        modeImageBtn.classList.add('active');
+        modeTextBtn.classList.remove('active');
+        wrapImage.classList.remove('hidden');
+        wrapText.classList.add('hidden');
+    });
+
+    // ── Image Upload ─────────────────────────────────────
+    imageUploadArea.addEventListener('click', () => imageFileInput.click());
+
+    imageFileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                currentImageBase64 = ev.target.result;
+                currentImageUrl = null;
+                imagePreview.src = currentImageBase64;
+                imagePreview.classList.remove('hidden');
+                imagePlaceholder.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
     // ── Auto-fill from context menu ──────────────────────
     chrome.runtime.sendMessage({ action: 'getClaim' }, (response) => {
-        if (response && response.claim) {
-            claimInput.value = response.claim;
-            charCount.textContent = response.claim.length;
+        if (response) {
+            if (response.imageUrl) {
+                // Sent from context menu image click
+                currentImageUrl = response.imageUrl;
+                currentImageBase64 = null;
+                imagePreview.src = currentImageUrl;
+                imagePreview.classList.remove('hidden');
+                imagePlaceholder.classList.add('hidden');
+                modeImageBtn.click(); // switch to image UI
+            } else if (response.claim) {
+                // Sent from context menu text selection
+                claimInput.value = response.claim;
+                charCount.textContent = response.claim.length;
+                modeTextBtn.click();
+            }
         }
     });
 
     // ── Verify button ────────────────────────────────────
     verifyBtn.addEventListener('click', async () => {
-        const claim = claimInput.value.trim();
-        if (!claim) {
-            claimInput.classList.add('shake');
-            setTimeout(() => claimInput.classList.remove('shake'), 500);
-            return;
+        let payload = {};
+        
+        if (currentMode === 'text') {
+            const claim = claimInput.value.trim();
+            if (!claim) {
+                claimInput.classList.add('shake');
+                setTimeout(() => claimInput.classList.remove('shake'), 500);
+                return;
+            }
+            payload = { claim: claim };
+        } else {
+            if (!currentImageBase64 && !currentImageUrl) {
+                imageUploadArea.classList.add('shake');
+                setTimeout(() => imageUploadArea.classList.remove('shake'), 500);
+                return;
+            }
+            payload = {
+                claim: "",
+                image_base64: currentImageBase64,
+                image_url: currentImageUrl
+            };
         }
 
         showProgress();
-        const progressDone = simulateProgress();
+        const progressDone = simulateProgress(currentMode);
 
         try {
             const response = await fetch(`${API_BASE}/verify`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ claim })
+                body: JSON.stringify(payload)
             });
 
             await progressDone;          // let progress animation finish
             if (!response.ok) throw new Error(`Server error: ${response.status}`);
             const data = await response.json();
+            
+            if (data.error) throw new Error(data.error);
             showVerdict(data);
 
         } catch (err) {
@@ -93,8 +174,14 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    async function simulateProgress() {
-        const stages = [
+    async function simulateProgress(mode) {
+        const stages = mode === 'image' ? [
+            { p: 15,  m: 'Extracting text and details from image…' },
+            { p: 35,  m: 'Searching for evidence across sources…' },
+            { p: 68,  m: 'Classifying stance with BERT/MNLI…' },
+            { p: 88,  m: 'Computing weighted verdict score…' },
+            { p: 97,  m: 'Generating explanation via LLM…' },
+        ] : [
             { p: 18,  m: 'Searching for evidence across sources…' },
             { p: 42,  m: 'Reading and extracting article snippets…' },
             { p: 68,  m: 'Classifying stance with BERT/MNLI…' },
@@ -114,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Badge
         const v = (data.verdict || 'UNVERIFIED').toUpperCase();
-        verdictBadge.textContent = v;
+        verdictBadge.textContent = data.localized_verdict ? data.localized_verdict.toUpperCase() : v;
         verdictBadge.className   = 'badge verdict-' + v.toLowerCase();
 
         // Confidence ring
@@ -173,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (idx === data.sub_claims.length - 1) row.style.marginBottom = '0';
 
             const badge = document.createElement('span');
-            badge.textContent = sc.verdict;
+            badge.textContent = sc.localized_verdict ? sc.localized_verdict : sc.verdict;
             badge.style.cssText = [
                 `color:${vc.text}`, 'font-size:9px', 'font-weight:700',
                 'letter-spacing:0.5px',
@@ -265,6 +352,15 @@ document.addEventListener('DOMContentLoaded', function () {
         inputSection.classList.remove('hidden');
         claimInput.value = '';
         charCount.textContent = '0';
+        
+        // Reset image
+        currentImageBase64 = null;
+        currentImageUrl = null;
+        imagePreview.src = '';
+        imagePreview.classList.add('hidden');
+        imagePlaceholder.classList.remove('hidden');
+        imageFileInput.value = '';
+
         progressBar.style.width = '0%';
         ringFill.style.strokeDashoffset = RING_CIRCUMFERENCE;
         statusMessage.textContent = 'Initializing…';

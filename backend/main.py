@@ -67,7 +67,9 @@ _history: list = []   # last 20 verifications
 
 
 class VerifyRequest(BaseModel):
-    claim: str
+    claim: str = ""
+    image_url: str | None = None
+    image_base64: str | None = None
 
 
 @app.get("/health")
@@ -84,6 +86,52 @@ def health():
 
 @app.post("/verify")
 async def verify(body: VerifyRequest):
-    """Main endpoint — full pipeline."""
-    result = await run_pipeline(body.claim)
+    """Main endpoint — full pipeline. Now supports text and image claims."""
+    claim = body.claim.strip()
+
+    if body.image_url or body.image_base64:
+        from image_engine import extract_claim_from_image
+        import base64
+        import httpx
+
+        image_bytes = None
+        if body.image_base64:
+            # handle 'data:image/png;base64,....' prefix if present
+            b64_str = body.image_base64
+            if "," in b64_str:
+                b64_str = b64_str.split(",")[1]
+            image_bytes = base64.b64decode(b64_str)
+        elif body.image_url:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(body.image_url)
+                if resp.status_code == 200:
+                    image_bytes = resp.content
+        
+        if image_bytes:
+            print("[API] Extracting claim from image...")
+            claim = extract_claim_from_image(image_bytes)
+            print(f"[API] Extracted claim: {claim}")
+
+    if not claim:
+        return {"error": "No valid claim could be found or extracted."}
+
+    from translator import detect_lang, translate_to_en, translate_from_en, translate_verdict
+    source_lang = detect_lang(claim)
+    
+    if source_lang != 'en':
+        print(f"[API] Detected '{source_lang}', translating to EN...")
+        claim = translate_to_en(claim, source_lang)
+
+    result = await run_pipeline(claim)
+
+    if source_lang != 'en':
+        print(f"[API] Translating output back to '{source_lang}'...")
+        result.explanation = translate_from_en(result.explanation, source_lang)
+        result.localized_verdict = translate_verdict(result.verdict, source_lang)
+        
+        if result.sub_claims:
+            for sc in result.sub_claims:
+                sc["text"] = translate_from_en(sc["text"], source_lang)
+                sc["localized_verdict"] = translate_verdict(sc["verdict"], source_lang)
+
     return result.to_dict()

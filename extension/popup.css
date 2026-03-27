@@ -177,6 +177,89 @@ textarea:focus {
     color: var(--text-dim);
 }
 
+/* ── Mode Toggle ────────────────────────────── */
+.mode-toggle {
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    margin-bottom: 12px;
+}
+
+.mode-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.mode-btn.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* ── Image Upload Area ──────────────────────── */
+.image-upload-area {
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    height: 95px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.image-upload-area:hover {
+    border-color: var(--glow);
+    background: rgba(99,102,241,0.05);
+}
+
+#image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 2;
+}
+
+#image-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+    position: absolute;
+    z-index: 1;
+}
+
+#image-placeholder span {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+#image-placeholder small {
+    font-size: 9px;
+    opacity: 0.8;
+}
+
+.upload-icon {
+    width: 24px;
+    height: 24px;
+    color: var(--text-muted);
+}
+
 /* ── Verify Button ───────────────────────────── */
 #verify-btn {
     width: 100%;

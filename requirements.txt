@@ -10,3 +10,9 @@ en_core_web_sm
 torch
 python 3.11
 node 18
+easyocr
+Pillow
+transformers
+torchvision
+langdetect
+deep-translator
