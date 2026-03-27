@@ -1,46 +1,122 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>OSINT Verify</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
     <div class="container">
+
+        <!-- ── Header ─────────────────────────────────── -->
         <header>
-            <div class="logo">OSINT Verify</div>
-            <div class="tagline">Rumor Verification Platform</div>
+            <div class="logo-wrap">
+                <div class="logo-icon">
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                        <path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M8 11h6M11 8v6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="logo-text">OSINT <span>Verify</span></div>
+                    <div class="tagline">AI-Powered Rumor Verification</div>
+                </div>
+            </div>
+            <button id="close-btn" title="Close" onclick="window.close()">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
         </header>
 
+        <!-- ── Input Section ──────────────────────────── -->
         <div id="input-section">
-            <textarea id="claim-input" placeholder="Enter claim to verify..."></textarea>
-            <button id="verify-btn">Verify Claim</button>
+            <div class="input-wrap">
+                <textarea id="claim-input" placeholder="Paste or type a claim to fact-check…" rows="4"></textarea>
+                <div class="char-count"><span id="char-count">0</span> chars</div>
+            </div>
+            <button id="verify-btn">
+                <svg class="btn-icon" viewBox="0 0 24 24" fill="none">
+                    <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
+                    <path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Verify Claim
+            </button>
         </div>
 
+        <!-- ── Progress Section ───────────────────────── -->
         <div id="progress-section" class="hidden">
-            <div class="progress-bar-container">
-                <div id="progress-bar" style="width: 0%"></div>
+            <div class="progress-header">
+                <div class="pulse-dot"></div>
+                <span id="status-message">Initializing…</span>
             </div>
-            <div id="status-message">Initializing...</div>
+            <div class="progress-track">
+                <div id="progress-bar"></div>
+            </div>
+            <div class="progress-steps">
+                <span class="step" data-step="1">Scraping</span>
+                <span class="step" data-step="2">Classifying</span>
+                <span class="step" data-step="3">Scoring</span>
+                <span class="step" data-step="4">Explaining</span>
+            </div>
         </div>
 
+        <!-- ── Verdict Section ────────────────────────── -->
         <div id="verdict-section" class="hidden">
-            <div id="verdict-badge" class="badge">FALSE</div>
-            <div class="confidence-container">
-                <span class="label">Confidence:</span>
-                <span id="confidence-value">84%</span>
+
+            <!-- Verdict hero -->
+            <div class="verdict-hero">
+                <div id="verdict-badge" class="badge">—</div>
+                <div class="confidence-ring-wrap">
+                    <svg class="confidence-ring" viewBox="0 0 48 48">
+                        <circle class="ring-bg" cx="24" cy="24" r="20"/>
+                        <circle id="ring-fill" class="ring-fill" cx="24" cy="24" r="20"
+                                stroke-dasharray="125.66" stroke-dashoffset="125.66"/>
+                    </svg>
+                    <div class="confidence-label">
+                        <span id="confidence-value">0%</span>
+                        <small>confidence</small>
+                    </div>
+                </div>
             </div>
-            <div id="explanation"></div>
-            
+
+            <!-- Explanation card -->
+            <div class="card explanation-card">
+                <div class="card-label">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    Analysis
+                </div>
+                <p id="explanation"></p>
+            </div>
+
+            <!-- Sub-claims breakdown (compound claims) -->
             <div id="subclaims-container"></div>
-            
-            <div id="sources-section">
-                <h3>Top Sources</h3>
+
+            <!-- Sources card -->
+            <div class="card sources-card">
+                <div class="card-label">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/>
+                    </svg>
+                    Top Sources
+                </div>
                 <ul id="sources-list"></ul>
             </div>
 
-            <button id="reset-btn">New Verification</button>
+            <button id="reset-btn" class="reset-btn">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                New Verification
+            </button>
         </div>
+
     </div>
     <script src="popup.js"></script>
 </body>

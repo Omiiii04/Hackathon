@@ -24,10 +24,12 @@ FALLBACK_TEMPLATES = {
 
 async def generate_explanation(claim: str, verdict: str,
                                 top_sources: list,
-                                algorithm_trace: dict) -> str:
+                                algorithm_trace: dict,
+                                sub_claims: list = None) -> str:
     """
     Calls a local LLM via LM Studio to generate a 2 to 4 sentence explanation.
     Includes programmatic truncation to handle overly chatty local models.
+    When sub_claims are provided (compound claim), they are included in the prompt.
     """
     try:
         source_names = [s.get("source", s.get("title", ""))[:30] for s in top_sources[:3]]
@@ -37,6 +39,15 @@ async def generate_explanation(claim: str, verdict: str,
         sup_cnt  = algorithm_trace.get("supporting_count", 0)
         con_cnt  = algorithm_trace.get("contradicting_count", 0)
         tier1    = algorithm_trace.get("tier1_count", 0)
+
+        # Build optional subclaim block for compound claims
+        subclaim_block = ""
+        if sub_claims:
+            lines = "\n".join(
+                f"  - \"{sc['text']}\" → {sc['verdict']} ({int(sc.get('confidence', 0)*100)}%)"
+                for sc in sub_claims
+            )
+            subclaim_block = f"\nSUBCLAIM BREAKDOWN:\n{lines}"
 
         prompt = f"""You are a professional fact-checker.
 A deterministic algorithm has computed the verdict.
@@ -48,7 +59,7 @@ SUPPORT RATIO: {ratio}
 SOURCES CONSULTED: {source_str}
 SUPPORTING EVIDENCE: {sup_cnt}
 CONTRADICTING EVIDENCE: {con_cnt}
-HIGH-CREDIBILITY SOURCES: {tier1}
+HIGH-CREDIBILITY SOURCES: {tier1}{subclaim_block}
 
 STRICT RULES:
 - Output ONLY the 2-4 sentences.

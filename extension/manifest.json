@@ -3,10 +3,10 @@
   "name": "OSINT Engine",
   "version": "1.0.0",
   "description": "AI-powered multi-source fact-checking platform.",
-  "permissions": ["contextMenus", "activeTab", "scripting", "storage"],
+  "permissions": ["contextMenus", "activeTab", "scripting", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "action": {
-    "default_popup": "popup.html"
+    "default_title": "OSINT Verify"
   },
   "background": {
     "service_worker": "background.js"
