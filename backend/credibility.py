@@ -1,6 +1,6 @@
 # backend/credibility.py  credibility scroring logic
-
 # Domain → credibility score range from (0.0 to 1.0)
+
 DOMAIN_SCORES = {
     # Tier 1 — 0.90+ (Major news + gov bodies)
     "reuters.com":    0.97,
@@ -19,7 +19,7 @@ DOMAIN_SCORES = {
     "politifact.com": 0.92,
     "factcheck.org":  0.92,
 
-    # Tier 2 — 0.70–0.89
+    # Tier 2 — 0.70–0.89 (Respected media + encyclopedias)
     "ndtv.com":       0.80,
     "aljazeera.com":  0.80,
     "bloomberg.com":  0.82,
@@ -27,7 +27,7 @@ DOMAIN_SCORES = {
     "timesofindia.com": 0.72,
     "wikipedia.org":  0.65,
 
-    # Tier 3 — 0.50–0.69
+    # Tier 3 — 0.50–0.69 (Social media + blogs)
     "medium.com":     0.40,
     "reddit.com":     0.30,
 }

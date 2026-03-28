@@ -5,11 +5,7 @@ from PIL import Image
 import easyocr
 import torch
 
-# ─────────────────────────────────────────────
-# LOAD VISION MODELS
-# ─────────────────────────────────────────────
 print("[ImageEngine] Loading EasyOCR fallback models...")
-# Initialize EasyOCR reader
 reader = easyocr.Reader(['en'], gpu=torch.cuda.is_available())
 
 print("[ImageEngine] EasyOCR loaded successfully ✅")

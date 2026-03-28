@@ -1,14 +1,11 @@
 # backend/main.py
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import asyncio
+from typing import List, Optional, Dict, Any
 from pipeline import run_pipeline
 
-# ─────────────────────────────────────────────
-# LIFESPAN — runs once at server startup/shutdown
-# ─────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -71,6 +68,31 @@ class VerifyRequest(BaseModel):
     image_url: str | None = None
     image_base64: str | None = None
 
+class VerifyResponse(BaseModel):
+    verdict: str
+    localized_verdict: Optional[str] = None
+    confidence: float
+    explanation: str
+    support_ratio: float
+    evidence_count: int
+    sources: List[Dict[str, Any]] = []
+    algorithm_trace: Dict[str, Any] = {}
+    cached: bool = False
+    processing_time_ms: int = 0
+    sub_claims: List[Dict[str, Any]] = []
+    is_compound: bool = False
+
+class HistoryItem(BaseModel):
+    timestamp: str
+    claim: str
+    verdict: str
+
+class HistoryResponse(BaseModel):
+    history: List[HistoryItem]
+
+class StatusResponse(BaseModel):
+    status: str
+
 
 @app.get("/health")
 def health():
@@ -84,7 +106,7 @@ def health():
     }
 
 
-@app.post("/verify")
+@app.post("/verify", response_model=VerifyResponse)
 async def verify(body: VerifyRequest):
     """Main endpoint — full pipeline. Now supports text and image claims."""
     claim = body.claim.strip()
@@ -113,7 +135,7 @@ async def verify(body: VerifyRequest):
             print(f"[API] Extracted claim: {claim}")
 
     if not claim:
-        return {"error": "No valid claim could be found or extracted."}
+        raise HTTPException(status_code=400, detail="No valid claim could be found or extracted.")
 
     from translator import detect_lang, translate_to_en, translate_from_en, translate_verdict
     source_lang = detect_lang(claim)
@@ -123,5 +145,24 @@ async def verify(body: VerifyRequest):
         claim = translate_to_en(claim, source_lang)
 
     result = await run_pipeline(claim)
+    
+    # Store in history 
+    import datetime
+    _history.append({
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "claim": claim[:100] + ("..." if len(claim) > 100 else ""),
+        "verdict": result.verdict
+    })
+    if len(_history) > 30:
+        _history.pop(0)
 
     return result.to_dict()
+
+@app.get("/history", response_model=HistoryResponse)
+def get_history():
+    return {"history": list(reversed(_history))}
+
+@app.delete("/history/clear", response_model=StatusResponse)
+def clear_history():
+    _history.clear()
+    return {"status": "success"}

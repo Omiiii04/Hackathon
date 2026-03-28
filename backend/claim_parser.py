@@ -1,13 +1,11 @@
-# backend/claim_parser.py (new file)
-import re
-
+# backend/claim_parser.py 
 def split_compound_claim(claim: str) -> list:
     """
     Splits compound claims into atomic sub-claims.
     Example: "Iran lost the war and Russia surrendered"
     → ["Iran lost the war", "Russia surrendered"]
     """
-    # Split on " and ", " but ", ". "
+    # Split on the basis of " and ", " but ", ". "
     separators = [" and ", " but ", " while ", ". ", "; "]
     parts = [claim]
     for sep in separators:
@@ -25,7 +23,7 @@ def split_compound_claim(claim: str) -> list:
 def is_compound(claim: str) -> bool:
     return len(split_compound_claim(claim)) > 1
 
-
+#Test the function
 if __name__ == "__main__":
     test = "Iran lost the war and Russia surrendered"
     parts = split_compound_claim(test)

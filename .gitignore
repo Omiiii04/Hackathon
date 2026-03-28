@@ -4,4 +4,7 @@ __pycache__
 *.pyc
 models
 testing
-TODO.md
+frontend/dist
+frontend/node_modules
+node_modules/
+frontend/node_modules/

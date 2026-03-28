@@ -1,19 +1,12 @@
 # backend/explainer.py
-import os
 import re
 from openai import AsyncOpenAI
 
-# ─────────────────────────────────────────────
-# LM STUDIO CLIENT SETUP
-# ─────────────────────────────────────────────
 client = AsyncOpenAI(
     base_url="http://localhost:1234/v1",
     api_key="lm-studio"
 )
 
-# ─────────────────────────────────────────────
-# RULE-BASED FALLBACK
-# ─────────────────────────────────────────────
 FALLBACK_TEMPLATES = {
     "TRUE": "Multiple credible sources confirm this claim is accurate. The evidence consistently supports the statement.",
     "FALSE": "Multiple credible sources contradict this claim. The evidence consistently shows this statement is inaccurate.",
@@ -89,13 +82,11 @@ STRICT RULES:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.0,
-            max_tokens=500  # ── Bumped up to allow room for the thinking process!
+            max_tokens=500  
         )
         
         raw_text = response.choices[0].message.content.strip()
 
-        # ── THE FIX: Remove everything inside <think> and </think> ──
-        # flags=re.DOTALL ensures it deletes across multiple lines
         raw_text = re.sub(r'<think>.*?</think>', '', raw_text, flags=re.DOTALL).strip()
 
         # 1. Remove common chatty prefixes the model might still try to use
@@ -107,7 +98,6 @@ STRICT RULES:
         # 3. Forcefully keep only the first 4 sentences and join them back together
         clean_text = " ".join(sentences[:4]).strip()
         
-        # ── UPDATE 3: Relaxed Sanity Check ──
         # If it's still weirdly short or somehow massive, we fall back.
         if len(clean_text) > 800 or len(clean_text) < 20:
             print(f"[Explainer] Response length out of bounds ({len(clean_text)} chars). Using fallback.")
@@ -119,6 +109,7 @@ STRICT RULES:
         print(f"[Explainer] Local LLM failed: {e} — using fallback template")
         return FALLBACK_TEMPLATES.get(verdict, FALLBACK_TEMPLATES["UNVERIFIED"])
 
+#testing the function
 if __name__ == "__main__":
     import asyncio
 
