@@ -1,33 +1,2475 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#111827" />
-  <meta name="description" content="OSINT Engine - Verify claims using global sources" />
-  <title>OSINT Engine | Fake News Detection</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OSINT Rumor Verification Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --white: #ffffff;
+    --off-white: #f8f8f6;
+    --gray-50: #f5f5f3;
+    --gray-100: #ebebea;
+    --gray-200: #d9d9d7;
+    --gray-400: #9e9e9c;
+    --gray-600: #5a5a58;
+    --gray-800: #2a2a28;
+    --ink: #111110;
+    --green: #16a34a;
+    --green-light: #dcfce7;
+    --green-border: #86efac;
+    --red: #dc2626;
+    --red-light: #fee2e2;
+    --red-border: #fca5a5;
+    --amber: #d97706;
+    --amber-light: #fef3c7;
+    --amber-border: #fcd34d;
+    --orange: #ea580c;
+    --orange-light: #fed7aa;
+    --orange-border: #fdba74;
+    --slate: #6b7280;
+    --slate-light: #f3f4f6;
+    --slate-border: #d1d5db;
+    --accent: #1a1a8c;
+    --accent-light: #eef0ff;
+  }
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  <style>
-    body {
-      margin: 0;
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-  </style>
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--white);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--gray-100);
+    background: var(--white);
+    padding: 0 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--ink);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+  }
+
+  .logo-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.2rem;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+  }
+
+  .logo-text span {
+    color: var(--accent);
+  }
+
+  nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .nav-btn {
+    padding: 6px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: none;
+    color: var(--gray-600);
+    transition: all 0.15s;
+  }
+
+  .nav-btn:hover { background: var(--gray-50); color: var(--ink); }
+  .nav-btn.active { background: var(--ink); color: white; }
+
+  .profile-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-600);
+    cursor: pointer;
+    margin-left: 8px;
+    transition: all 0.15s;
+  }
+
+  .profile-badge:hover { border-color: var(--gray-400); color: var(--ink); }
+
+  .profile-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+
+  /* ── LAYOUT ── */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr 320px;
+    min-height: calc(100vh - 60px);
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    border-right: 1px solid var(--gray-100);
+    padding: 1.5rem 1rem;
+    background: var(--white);
+    overflow-y: auto;
+  }
+
+  .sidebar-section {
+    margin-bottom: 1.5rem;
+  }
+
+  .sidebar-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gray-400);
+    margin-bottom: 8px;
+    padding: 0 8px;
+  }
+
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 7px;
+    font-size: 13.5px;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all 0.12s;
+    margin-bottom: 2px;
+  }
+
+  .sidebar-item:hover { background: var(--gray-50); color: var(--ink); }
+  .sidebar-item.active { background: var(--accent-light); color: var(--accent); font-weight: 500; }
+
+  .sidebar-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .history-item {
+    padding: 8px 10px;
+    border-radius: 7px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.12s;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+  }
+
+  .history-item:hover { background: var(--gray-50); border-color: var(--gray-100); }
+
+  .history-claim {
+    color: var(--gray-800);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+  }
+
+  .history-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+  }
+
+  .verdict-pill {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    padding: 1px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  .v-TRUE    { background: var(--green-light);  color: var(--green); }
+  .v-FALSE   { background: var(--red-light);    color: var(--red); }
+  .v-MISLEADING  { background: var(--amber-light);  color: var(--amber); }
+  .v-CONFLICTING { background: var(--orange-light); color: var(--orange); }
+  .v-UNVERIFIED  { background: var(--slate-light);  color: var(--slate); }
+
+  .history-time { font-size: 10px; color: var(--gray-400); }
+
+  /* ── MAIN ── */
+  .main-content {
+    padding: 2rem 2.5rem;
+    background: var(--white);
+    overflow-y: auto;
+  }
+
+  /* Search box */
+  .search-area {
+    margin-bottom: 2rem;
+  }
+
+  .search-heading {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem;
+    color: var(--ink);
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+  }
+
+  .search-sub {
+    font-size: 13px;
+    color: var(--gray-400);
+    margin-bottom: 16px;
+  }
+
+  .search-box {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .search-input-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .search-input {
+    width: 100%;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 14px 16px 14px 44px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14.5px;
+    color: var(--ink);
+    background: var(--white);
+    resize: none;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    min-height: 56px;
+    line-height: 1.5;
+  }
+
+  .search-input::placeholder { color: var(--gray-400); }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #eef0ff; }
+
+  .search-icon {
+    position: absolute;
+    left: 14px;
+    top: 16px;
+    font-size: 18px;
+    color: var(--gray-400);
+  }
+
+  .search-btn {
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 22px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    height: 56px;
+  }
+
+  .search-btn:hover { background: #333330; transform: translateY(-1px); }
+  .search-btn:active { transform: translateY(0); }
+  .search-btn:disabled { background: var(--gray-200); color: var(--gray-400); cursor: not-allowed; transform: none; }
+
+  /* ── IMAGE DROP ZONE ── */
+  .image-drop-zone {
+    margin-top: 10px;
+    border: 1.5px dashed var(--gray-200);
+    border-radius: 10px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    background: var(--white);
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    position: relative;
+  }
+
+  .image-drop-zone:hover {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  .image-drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-light);
+    box-shadow: 0 0 0 3px #eef0ff;
+  }
+
+  .image-drop-zone.has-image {
+    border-style: solid;
+    border-color: var(--gray-200);
+    background: var(--gray-50);
+  }
+
+  .drop-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    color: var(--gray-400);
+    transition: color 0.15s;
+  }
+
+  .image-drop-zone:hover .drop-icon,
+  .image-drop-zone.drag-over .drop-icon { color: var(--accent); }
+
+  .drop-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .drop-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--gray-600);
+    transition: color 0.15s;
+  }
+
+  .image-drop-zone:hover .drop-label,
+  .image-drop-zone.drag-over .drop-label { color: var(--accent); }
+
+  .drop-hint {
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-top: 1px;
+  }
+
+  .drop-browse {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-light);
+    border: 1px solid #c7cbf7;
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+    flex-shrink: 0;
+  }
+
+  .drop-browse:hover { background: #dde0ff; }
+
+  #imageFileInput { display: none; }
+
+  /* Image preview */
+  .image-preview-wrap {
+    display: none;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-100);
+    border-radius: 10px;
+  }
+
+  .image-preview-wrap.visible { display: flex; }
+
+  .image-preview-thumb {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 7px;
+    border: 1px solid var(--gray-200);
+    flex-shrink: 0;
+  }
+
+  .image-preview-info { flex: 1; min-width: 0; }
+
+  .image-preview-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-800);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .image-preview-meta {
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-top: 2px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .image-preview-ocr {
+    font-size: 12px;
+    color: var(--gray-600);
+    margin-top: 6px;
+    line-height: 1.4;
+    font-style: italic;
+  }
+
+  .image-preview-ocr strong {
+    color: var(--accent);
+    font-style: normal;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .image-remove-btn {
+    background: none;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--gray-400);
+    padding: 4px 8px;
+    cursor: pointer;
+    transition: all 0.12s;
+    flex-shrink: 0;
+    align-self: flex-start;
+  }
+
+  .image-remove-btn:hover { border-color: var(--red); color: var(--red); }
+
+  .claim-type-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+
+  .claim-type-tag {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--gray-600);
+    cursor: pointer;
+    transition: all 0.12s;
+    background: var(--white);
+  }
+
+  .claim-type-tag.selected { background: var(--ink); color: white; border-color: var(--ink); }
+  .claim-type-tag:hover:not(.selected) { border-color: var(--gray-400); color: var(--ink); }
+
+  /* ── PROGRESS BAR ── */
+  .progress-section {
+    display: none;
+    margin-bottom: 1.5rem;
+    background: var(--off-white);
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+  }
+
+  .progress-section.visible { display: block; animation: fadeIn 0.3s ease; }
+
+  .progress-stage {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    margin-bottom: 10px;
+  }
+
+  .progress-stage span { color: var(--gray-400); font-weight: 400; margin-left: 8px; }
+
+  .progress-track {
+    background: var(--gray-200);
+    border-radius: 4px;
+    height: 5px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--ink);
+    border-radius: 4px;
+    transition: width 0.6s ease;
+  }
+
+  .progress-steps {
+    display: flex;
+    gap: 0;
+    font-size: 11px;
+    color: var(--gray-400);
+  }
+
+  .progress-step {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 16px;
+  }
+
+  .step-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gray-200);
+  }
+
+  .step-dot.done { background: var(--green); }
+  .step-dot.active { background: var(--accent); }
+
+  /* ── KILLER SCREEN ── */
+  .killer-screen {
+    display: none;
+  }
+
+  .killer-screen.visible { display: block; animation: fadeIn 0.4s ease; }
+
+  /* Verdict Card */
+  .verdict-card {
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .verdict-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 4px;
+    height: 100%;
+    border-radius: 14px 0 0 14px;
+  }
+
+  .vc-TRUE    { background: #f0fdf4; border: 1px solid var(--green-border); }
+  .vc-TRUE::before { background: var(--green); }
+
+  .vc-FALSE   { background: #fff5f5; border: 1px solid var(--red-border); }
+  .vc-FALSE::before { background: var(--red); }
+
+  .vc-MISLEADING  { background: #fffbeb; border: 1px solid var(--amber-border); }
+  .vc-MISLEADING::before { background: var(--amber); }
+
+  .vc-CONFLICTING { background: #fff7ed; border: 1px solid var(--orange-border); }
+  .vc-CONFLICTING::before { background: var(--orange); }
+
+  .vc-UNVERIFIED  { background: var(--slate-light); border: 1px solid var(--slate-border); }
+  .vc-UNVERIFIED::before { background: var(--slate); }
+
+  .verdict-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .verdict-left { flex: 1; }
+
+  .verdict-emoji { font-size: 2rem; margin-bottom: 8px; }
+
+  .verdict-label {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.2rem;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+
+  .vl-TRUE    { color: #15803d; }
+  .vl-FALSE   { color: #991b1b; }
+  .vl-MISLEADING  { color: #92400e; }
+  .vl-CONFLICTING { color: #9a3412; }
+  .vl-UNVERIFIED  { color: #374151; }
+
+  .verdict-claim-text {
+    font-size: 13px;
+    color: var(--gray-600);
+    font-style: italic;
+    margin-bottom: 8px;
+  }
+
+  .verdict-right {
+    text-align: right;
+    min-width: 120px;
+  }
+
+  .confidence-ring {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    margin-left: auto;
+    margin-bottom: 6px;
+  }
+
+  .confidence-svg { transform: rotate(-90deg); }
+
+  .confidence-bg { fill: none; stroke: var(--gray-200); stroke-width: 6; }
+  .confidence-fg { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+
+  .confidence-text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .confidence-pct {
+    font-family: 'DM Mono', monospace;
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink);
+    display: block;
+    line-height: 1;
+  }
+
+  .confidence-lbl {
+    font-size: 9px;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .claim-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-light);
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+  }
+
+  /* mutation alert */
+  .mutation-alert {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff7ed;
+    border: 1px solid var(--orange-border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13px;
+  }
+
+  .mutation-alert-icon { font-size: 18px; }
+  .mutation-alert-text { color: #9a3412; }
+  .mutation-alert-text strong { display: block; font-weight: 600; margin-bottom: 2px; }
+
+  /* Verdict tags */
+  .verdict-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .vtag {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: white;
+    border: 1px solid var(--gray-200);
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+
+  /* ── SUPPORT BAR ── */
+  .support-bar-section {
+    background: var(--white);
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-400);
+    margin-bottom: 12px;
+  }
+
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .bar-label {
+    width: 80px;
+    font-size: 13px;
+    color: var(--gray-600);
+    font-weight: 500;
+  }
+
+  .bar-track {
+    flex: 1;
+    height: 10px;
+    background: var(--gray-100);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 5px;
+    transition: width 1.2s cubic-bezier(0.25,1,0.5,1);
+  }
+
+  .bar-support    { background: var(--green); }
+  .bar-contradict { background: var(--red); }
+
+  .bar-pct {
+    width: 40px;
+    text-align: right;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .bar-empty {
+    border: 2px dashed var(--gray-200);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .bar-empty p { color: var(--gray-400); font-size: 13px; font-style: italic; }
+  .bar-empty small { color: var(--gray-400); font-size: 11px; }
+
+  /* ── EXPLANATION ── */
+  .explanation-section {
+    background: var(--white);
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .explanation-text {
+    font-size: 14px;
+    color: var(--gray-800);
+    line-height: 1.7;
+  }
+
+  .llm-provider-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--gray-400);
+    margin-top: 8px;
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* ── SUB-CLAIMS ── */
+  .subclaims-section {
+    background: var(--white);
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .subclaim-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 13px;
+  }
+
+  .subclaim-row:last-child { border-bottom: none; }
+
+  .subclaim-icon { font-size: 16px; width: 20px; text-align: center; }
+  .subclaim-text { flex: 1; color: var(--gray-800); }
+  .subclaim-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  /* ── SOURCES ── */
+  .sources-section {
+    background: var(--white);
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .source-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .source-card:last-child { border-bottom: none; }
+
+  .source-favicon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .source-info { flex: 1; min-width: 0; }
+
+  .source-name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .source-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .tier-badge {
+    font-size: 10px;
+    background: var(--gray-100);
+    color: var(--gray-600);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .tier-badge.t1 { background: #dcfce7; color: #15803d; }
+  .tier-badge.t2 { background: #dbeafe; color: #1d4ed8; }
+  .tier-badge.t3 { background: var(--gray-100); color: var(--gray-600); }
+
+  .source-date { font-size: 11px; color: var(--gray-400); }
+
+  .credibility-bar-mini {
+    width: 60px;
+    height: 4px;
+    background: var(--gray-200);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .credibility-fill { height: 100%; background: var(--green); border-radius: 2px; }
+
+  .source-stance {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .ss-SUPPORTING    { background: var(--green); }
+  .ss-CONTRADICTING { background: var(--red); }
+  .ss-NEUTRAL       { background: var(--gray-400); }
+
+  .credibility-shift {
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .shift-up   { color: var(--green); }
+  .shift-down { color: var(--red); }
+
+  /* ── ALGORITHM TRACE ── */
+  .trace-section {
+    background: var(--white);
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .trace-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .trace-item {
+    background: var(--off-white);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .trace-key {
+    font-size: 10px;
+    color: var(--gray-400);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .trace-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .trace-flag { display: flex; align-items: center; gap: 6px; }
+  .flag-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .flag-on  { background: var(--green); }
+  .flag-off { background: var(--gray-200); }
+
+  /* ── RIGHT PANEL ── */
+  .right-panel {
+    border-left: 1px solid var(--gray-100);
+    padding: 1.5rem 1rem;
+    background: var(--white);
+    overflow-y: auto;
+  }
+
+  /* Evidence Graph */
+  .graph-container {
+    width: 100%;
+    height: 240px;
+    background: var(--off-white);
+    border-radius: 12px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+
+  .graph-canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .graph-legend {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--gray-500);
+    margin-top: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; }
+
+  /* Source timeline */
+  .timeline-section {
+    margin-bottom: 1.25rem;
+  }
+
+  .timeline-track {
+    position: relative;
+    padding-left: 20px;
+    border-left: 2px solid var(--gray-200);
+  }
+
+  .timeline-node {
+    position: relative;
+    margin-bottom: 14px;
+  }
+
+  .timeline-dot {
+    position: absolute;
+    left: -25px;
+    top: 3px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+  }
+
+  .timeline-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .timeline-meta { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+
+  /* Mutation chain */
+  .mutation-section {
+    background: #fff7ed;
+    border: 1px solid var(--orange-border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .mutation-chain-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a3412;
+    margin-bottom: 10px;
+  }
+
+  .mutation-variant {
+    background: white;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border: 1px solid var(--orange-border);
+  }
+
+  .mutation-variant-text {
+    font-size: 12px;
+    color: var(--gray-800);
+    font-style: italic;
+    margin-bottom: 4px;
+  }
+
+  .mutation-sim {
+    font-size: 11px;
+    color: var(--gray-400);
+    font-family: 'DM Mono', monospace;
+  }
+
+  /* Metrics */
+  .metrics-section {
+    margin-bottom: 1.25rem;
+  }
+
+  .metric-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .metric-card {
+    background: var(--off-white);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .metric-value {
+    font-family: 'DM Mono', monospace;
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--ink);
+    display: block;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .metric-label {
+    font-size: 10px;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Feedback */
+  .feedback-section {
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .feedback-btns {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .fb-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1.5px solid var(--gray-200);
+    background: white;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.15s;
+    color: var(--gray-600);
+  }
+
+  .fb-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-light); }
+  .fb-btn.incorrect:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--gray-100);
+    margin-bottom: 1.25rem;
+  }
+
+  .tab-btn {
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--gray-400);
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+
+  .tab-btn:hover { color: var(--ink); }
+  .tab-btn.active { color: var(--ink); border-bottom-color: var(--ink); }
+
+  /* ── UTILS ── */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.5; }
+  }
+
+  .loading-pulse { animation: pulse 1.5s ease-in-out infinite; }
+
+  .divider {
+    height: 1px;
+    background: var(--gray-100);
+    margin: 1rem 0;
+  }
+
+  .cached-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+
+  .adversarial-warning {
+    background: #fef3c7;
+    border: 1px solid var(--amber-border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: #92400e;
+  }
+
+  .adversarial-warning strong { display: block; font-weight: 600; margin-bottom: 4px; }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--gray-400);
+  }
+
+  .empty-state .es-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-state .es-title { font-size: 1rem; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
+  .empty-state .es-text { font-size: 13px; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 4px; }
+
+  @media (max-width: 1100px) {
+    .app-layout { grid-template-columns: 220px 1fr; }
+    .right-panel { display: none; }
+  }
+
+  @media (max-width: 768px) {
+    .app-layout { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .main-content { padding: 1rem; }
+  }
+</style>
 </head>
-
 <body>
-  <noscript>You need to enable JavaScript to run this app.</noscript>
 
-  <div id="root"></div>
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔍</div>
+    <div class="logo-text">OSINT<span>Verify</span></div>
+  </div>
+  <nav>
+    <button class="nav-btn active" onclick="switchView('verify')">Verify</button>
+    <button class="nav-btn" onclick="switchView('dashboard')">Dashboard</button>
+    <button class="nav-btn" onclick="switchView('history')">History</button>
+    <div class="profile-badge" onclick="cycleProfile()">
+      <div class="profile-dot"></div>
+      <span id="profileLabel">General</span>
+    </div>
+  </nav>
+</header>
 
+<!-- ── LAYOUT ── -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      <div class="sidebar-item active" onclick="switchView('verify')">
+        <span class="icon">🔍</span> Verify Claim
+      </div>
+      <div class="sidebar-item" onclick="switchView('dashboard')">
+        <span class="icon">📊</span> Dashboard
+      </div>
+      <div class="sidebar-item" onclick="switchView('metrics')">
+        <span class="icon">📈</span> System Metrics
+      </div>
+      <div class="sidebar-item">
+        <span class="icon">🔗</span> Mutation Chains
+      </div>
+      <div class="sidebar-item">
+        <span class="icon">🌐</span> Source Credibility
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Recent Checks</div>
+
+      <div class="history-item" onclick="loadDemo('FALSE')">
+        <div class="history-claim">5G towers cause COVID-19</div>
+        <div class="history-meta">
+          <span class="verdict-pill v-FALSE">FALSE</span>
+          <span class="history-time">2h ago</span>
+        </div>
+      </div>
+
+      <div class="history-item" onclick="loadDemo('CONFLICTING')">
+        <div class="history-claim">New study links coffee to longevity</div>
+        <div class="history-meta">
+          <span class="verdict-pill v-CONFLICTING">CONFLICTING</span>
+          <span class="history-time">5h ago</span>
+        </div>
+      </div>
+
+      <div class="history-item" onclick="loadDemo('TRUE')">
+        <div class="history-claim">WHO declared mpox a global emergency</div>
+        <div class="history-meta">
+          <span class="verdict-pill v-TRUE">TRUE</span>
+          <span class="history-time">1d ago</span>
+        </div>
+      </div>
+
+      <div class="history-item" onclick="loadDemo('MISLEADING')">
+        <div class="history-claim">Government secretly tracking citizens via vaccine</div>
+        <div class="history-meta">
+          <span class="verdict-pill v-MISLEADING">MISLEADING</span>
+          <span class="history-time">2d ago</span>
+        </div>
+      </div>
+
+      <div class="history-item" onclick="loadDemo('UNVERIFIED')">
+        <div class="history-claim">Breaking: parliament dissolves unexpectedly</div>
+        <div class="history-meta">
+          <span class="verdict-pill v-UNVERIFIED">UNVERIFIED</span>
+          <span class="history-time">3d ago</span>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content" id="mainContent">
+
+    <!-- ── VERIFY VIEW ── -->
+    <div id="verifyView">
+      <div class="search-area">
+        <div class="search-heading">Verify a Claim</div>
+        <div class="search-sub">Enter any news claim, rumor, or statement to fact-check using OSINT sources.</div>
+
+        <div class="search-box">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <textarea class="search-input" id="claimInput"
+              placeholder="e.g. Scientists have found a link between 5G towers and COVID-19 symptoms..."
+              rows="1"
+              onInput="autoResize(this)"></textarea>
+          </div>
+          <button class="search-btn" id="verifyBtn" onclick="startVerification()">Verify →</button>
+        </div>
+
+        <!-- Image drag-and-drop -->
+        <div
+          class="image-drop-zone"
+          id="imageDropZone"
+          onclick="document.getElementById('imageFileInput').click()"
+          ondragover="handleDragOver(event)"
+          ondragleave="handleDragLeave(event)"
+          ondrop="handleDrop(event)"
+        >
+          <span class="drop-icon">🖼️</span>
+          <div class="drop-text">
+            <div class="drop-label">Attach an image to verify</div>
+            <div class="drop-hint">Drag &amp; drop a screenshot, headline, or photo — text will be extracted</div>
+          </div>
+          <input type="file" id="imageFileInput" accept="image/*" onchange="handleFileSelect(event)" />
+          <button class="drop-browse" onclick="event.stopPropagation(); document.getElementById('imageFileInput').click()">Browse</button>
+        </div>
+
+        <!-- Preview -->
+        <div class="image-preview-wrap" id="imagePreviewWrap">
+          <img class="image-preview-thumb" id="imagePreviewThumb" src="" alt="preview" />
+          <div class="image-preview-info">
+            <div class="image-preview-name" id="imagePreviewName">image.png</div>
+            <div class="image-preview-meta" id="imagePreviewMeta">—</div>
+            <div class="image-preview-ocr" id="imagePreviewOcr" style="display:none">
+              <strong>📝 Extracted text</strong>
+              <span id="imageOcrText"></span>
+            </div>
+          </div>
+          <button class="image-remove-btn" onclick="removeImage()">✕ Remove</button>
+        </div>
+
+        <div class="claim-type-row">
+          <div class="claim-type-tag selected" onclick="selectType(this, 'auto')">🤖 Auto-detect</div>
+          <div class="claim-type-tag" onclick="selectType(this, 'breaking_news')">⚡ Breaking News</div>
+          <div class="claim-type-tag" onclick="selectType(this, 'scientific')">🔬 Scientific</div>
+          <div class="claim-type-tag" onclick="selectType(this, 'political')">🏛️ Political</div>
+          <div class="claim-type-tag" onclick="selectType(this, 'general')">📄 General</div>
+        </div>
+      </div>
+
+      <!-- PROGRESS -->
+      <div class="progress-section" id="progressSection">
+        <div class="progress-stage" id="stageText">Parsing claim… <span id="stageMsg"></span></div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <div class="progress-steps" id="progressSteps">
+          <div class="progress-step"><div class="step-dot" id="dot-parsing"></div>Parsing</div>
+          <div class="progress-step"><div class="step-dot" id="dot-searching"></div>Searching</div>
+          <div class="progress-step"><div class="step-dot" id="dot-scoring"></div>Scoring</div>
+          <div class="progress-step"><div class="step-dot" id="dot-explaining"></div>Explaining</div>
+          <div class="progress-step"><div class="step-dot" id="dot-complete"></div>Complete</div>
+        </div>
+      </div>
+
+      <!-- KILLER SCREEN -->
+      <div class="killer-screen" id="killerScreen">
+
+        <!-- VERDICT CARD -->
+        <div class="verdict-card" id="verdictCard">
+          <div class="verdict-top">
+            <div class="verdict-left">
+              <div class="claim-type-badge" id="claimTypeBadge">⚡ Breaking News</div>
+              <div class="verdict-emoji" id="verdictEmoji">❌</div>
+              <div class="verdict-label" id="verdictLabel">FALSE</div>
+              <div class="verdict-claim-text" id="verdictClaim">"5G towers cause COVID-19 symptoms"</div>
+              <div class="verdict-tags" id="verdictTags"></div>
+
+              <div id="mutationAlert" style="display:none" class="mutation-alert">
+                <span class="mutation-alert-icon">🔄</span>
+                <div class="mutation-alert-text">
+                  <strong>Mutation Detected</strong>
+                  This is a variant of a known false claim (similarity: 0.82)
+                </div>
+              </div>
+
+              <div id="adversarialWarning" style="display:none" class="adversarial-warning">
+                <strong>⚠️ Adversarial Signal Detected</strong>
+                COORDINATED_SOURCE_SPAM: 4 low-credibility sources published within 1h
+              </div>
+            </div>
+
+            <div class="verdict-right">
+              <div class="confidence-ring">
+                <svg class="confidence-svg" width="80" height="80" viewBox="0 0 80 80">
+                  <circle class="confidence-bg" cx="40" cy="40" r="34"/>
+                  <circle class="confidence-fg" id="confRing" cx="40" cy="40" r="34"
+                    stroke-dasharray="213.6"
+                    stroke-dashoffset="213.6"
+                    stroke="#dc2626"/>
+                </svg>
+                <div class="confidence-text">
+                  <span class="confidence-pct" id="confPct">0%</span>
+                  <span class="confidence-lbl">conf.</span>
+                </div>
+              </div>
+              <div style="font-size:11px; color: var(--gray-400); text-align:right;">
+                <span id="cachedBadge" style="display:none" class="cached-badge">⚡ Cached</span>
+                <br/>
+                <span id="processingTime" style="font-family:'DM Mono',monospace;">5,840ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
+          <button class="tab-btn" onclick="switchTab('sources')">Sources</button>
+          <button class="tab-btn" onclick="switchTab('trace')">Algorithm Trace</button>
+          <button class="tab-btn" onclick="switchTab('subclaims')">Sub-Claims</button>
+        </div>
+
+        <!-- OVERVIEW TAB -->
+        <div id="tab-overview">
+          <!-- Support Bar -->
+          <div class="support-bar-section">
+            <div class="section-title">Evidence Support</div>
+            <div id="supportBarContent"></div>
+          </div>
+
+          <!-- Explanation -->
+          <div class="explanation-section">
+            <div class="section-title">Explanation</div>
+            <div class="explanation-text" id="explanationText"></div>
+            <div class="llm-provider-tag">⚙️ via <span id="llmProvider">ollama</span></div>
+          </div>
+        </div>
+
+        <!-- SOURCES TAB -->
+        <div id="tab-sources" style="display:none">
+          <div class="sources-section">
+            <div class="section-title">Evidence Sources</div>
+            <div id="sourcesContent"></div>
+          </div>
+        </div>
+
+        <!-- TRACE TAB -->
+        <div id="tab-trace" style="display:none">
+          <div class="trace-section">
+            <div class="section-title">Algorithm Trace</div>
+            <div class="trace-grid" id="traceGrid"></div>
+          </div>
+        </div>
+
+        <!-- SUB-CLAIMS TAB -->
+        <div id="tab-subclaims" style="display:none">
+          <div class="subclaims-section">
+            <div class="section-title">Claim Breakdown</div>
+            <div id="subclaimsContent"></div>
+          </div>
+        </div>
+
+      </div> <!-- end killer-screen -->
+
+      <!-- EMPTY STATE -->
+      <div class="empty-state" id="emptyState">
+        <div class="es-icon">🔍</div>
+        <div class="es-title">Ready to verify</div>
+        <div class="es-text">Enter a claim above and press Verify to begin OSINT analysis.</div>
+      </div>
+
+    </div> <!-- end verifyView -->
+
+    <!-- ── DASHBOARD VIEW ── -->
+    <div id="dashboardView" style="display:none">
+      <div class="search-heading" style="margin-bottom:1.5rem;">System Dashboard</div>
+
+      <div class="metric-grid" style="margin-bottom:1.5rem;">
+        <div class="metric-card">
+          <span class="metric-value">868</span>
+          <div class="metric-label">Total Claims</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">81%</span>
+          <div class="metric-label">Avg Confidence</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">67%</span>
+          <div class="metric-label">Cache Hit Rate</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">43%</span>
+          <div class="metric-label">Early Exit Rate</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">5.8s</span>
+          <div class="metric-label">Avg Processing</div>
+        </div>
+        <div class="metric-card">
+          <span class="metric-value">71%</span>
+          <div class="metric-label">Ollama Usage</div>
+        </div>
+      </div>
+
+      <div class="support-bar-section">
+        <div class="section-title">Verdict Distribution</div>
+        <div class="bar-row"><div class="bar-label">TRUE</div><div class="bar-track"><div class="bar-fill bar-support" style="width:16%"></div></div><div class="bar-pct">142</div></div>
+        <div class="bar-row"><div class="bar-label">FALSE</div><div class="bar-track"><div class="bar-fill bar-contradict" style="width:45%"></div></div><div class="bar-pct">389</div></div>
+        <div class="bar-row"><div class="bar-label">MISLEAD</div><div class="bar-track"><div class="bar-fill" style="width:23%;background:var(--amber)"></div></div><div class="bar-pct">201</div></div>
+        <div class="bar-row"><div class="bar-label">CONFLICT</div><div class="bar-track"><div class="bar-fill" style="width:5%;background:var(--orange)"></div></div><div class="bar-pct">47</div></div>
+        <div class="bar-row"><div class="bar-label">UNVERIF</div><div class="bar-track"><div class="bar-fill" style="width:10%;background:var(--slate)"></div></div><div class="bar-pct">89</div></div>
+      </div>
+
+      <div class="support-bar-section">
+        <div class="section-title">Claim Type Distribution</div>
+        <div class="bar-row"><div class="bar-label">General</div><div class="bar-track"><div class="bar-fill" style="width:45%;background:var(--accent)"></div></div><div class="bar-pct">45%</div></div>
+        <div class="bar-row"><div class="bar-label">Political</div><div class="bar-track"><div class="bar-fill" style="width:30%;background:var(--accent)"></div></div><div class="bar-pct">30%</div></div>
+        <div class="bar-row"><div class="bar-label">Breaking</div><div class="bar-track"><div class="bar-fill" style="width:15%;background:var(--accent)"></div></div><div class="bar-pct">15%</div></div>
+        <div class="bar-row"><div class="bar-label">Scientific</div><div class="bar-track"><div class="bar-fill" style="width:10%;background:var(--accent)"></div></div><div class="bar-pct">10%</div></div>
+      </div>
+
+      <div class="trace-section">
+        <div class="section-title">LLM Provider Usage</div>
+        <div class="trace-grid">
+          <div class="trace-item"><div class="trace-key">Ollama (Primary)</div><div class="trace-value">71%</div></div>
+          <div class="trace-item"><div class="trace-key">Gemini Flash</div><div class="trace-value">18%</div></div>
+          <div class="trace-item"><div class="trace-key">Groq Llama</div><div class="trace-value">8%</div></div>
+          <div class="trace-item"><div class="trace-key">Rule-Based</div><div class="trace-value">3%</div></div>
+        </div>
+      </div>
+
+      <div class="trace-section">
+        <div class="section-title">Circuit Breaker Status</div>
+        <div class="trace-grid">
+          <div class="trace-item"><div class="trace-key">NewsAPI</div><div class="trace-value trace-flag"><div class="flag-dot flag-off"></div> CLOSED</div></div>
+          <div class="trace-item"><div class="trace-key">Snopes</div><div class="trace-value trace-flag"><div class="flag-dot flag-on"></div> OPEN ×1</div></div>
+          <div class="trace-item"><div class="trace-key">SERP</div><div class="trace-value trace-flag"><div class="flag-dot flag-off"></div> CLOSED</div></div>
+          <div class="trace-item"><div class="trace-key">GDELT</div><div class="trace-value trace-flag"><div class="flag-dot flag-off"></div> CLOSED</div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- RIGHT PANEL -->
+  <aside class="right-panel" id="rightPanel">
+    <!-- Evidence Graph -->
+    <div id="graphPanel" style="display:none">
+      <div class="section-title" style="margin-bottom:10px;">Evidence Network</div>
+      <div class="graph-container">
+        <canvas class="graph-canvas" id="graphCanvas"></canvas>
+      </div>
+      <div class="graph-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Supporting</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Contradicting</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--gray-400)"></div>Neutral</div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div id="timelinePanel" style="display:none" class="timeline-section">
+      <div class="section-title" style="margin-bottom:10px;">Source Timeline</div>
+      <div class="timeline-track" id="timelineTrack"></div>
+    </div>
+
+    <!-- Mutation Chain -->
+    <div id="mutationPanel" style="display:none" class="mutation-section">
+      <div class="mutation-chain-title">🔄 Mutation Chain</div>
+      <div id="mutationContent"></div>
+    </div>
+
+    <!-- Feedback -->
+    <div id="feedbackPanel" style="display:none" class="feedback-section">
+      <div class="section-title">Rate this verdict</div>
+      <p style="font-size:12px;color:var(--gray-400);margin-bottom:0">Was this verdict accurate?</p>
+      <div class="feedback-btns">
+        <button class="fb-btn" onclick="submitFeedback('correct')">👍 Correct</button>
+        <button class="fb-btn incorrect" onclick="submitFeedback('incorrect')">👎 Incorrect</button>
+      </div>
+    </div>
+
+    <!-- Default right panel content -->
+    <div id="rightDefault">
+      <div class="section-title" style="margin-bottom:12px;">Platform Info</div>
+      <div class="trace-grid" style="margin-bottom:1rem;">
+        <div class="trace-item"><div class="trace-key">Version</div><div class="trace-value">v5.2.0</div></div>
+        <div class="trace-item"><div class="trace-key">LLM</div><div class="trace-value">Ollama</div></div>
+        <div class="trace-item"><div class="trace-key">Model</div><div class="trace-value">Qwen2.5 3B</div></div>
+        <div class="trace-item"><div class="trace-key">GPU</div><div class="trace-value">RTX 4050</div></div>
+      </div>
+      <div class="section-title" style="margin-bottom:10px;">Cache Status</div>
+      <div class="trace-grid">
+        <div class="trace-item"><div class="trace-key">Claims (24h)</div><div class="trace-value">✅ Active</div></div>
+        <div class="trace-item"><div class="trace-key">Embeddings (12h)</div><div class="trace-value">✅ Active</div></div>
+        <div class="trace-item"><div class="trace-key">LLM Cache (6h)</div><div class="trace-value">✅ Active</div></div>
+        <div class="trace-item"><div class="trace-key">Cred (7d)</div><div class="trace-value">✅ Active</div></div>
+      </div>
+    </div>
+
+  </aside>
+
+</div>
+
+<script>
+/* ─────────────────────────────────────────── */
+/*  STATE                                      */
+/* ─────────────────────────────────────────── */
+let currentProfile = 'general';
+let selectedType = 'auto';
+let activeTab = 'overview';
+let currentReport = null;
+
+const profiles = ['general', 'journalist', 'researcher'];
+const profileLabels = { general: 'General', journalist: 'Journalist', researcher: 'Researcher' };
+
+/* ─────────────────────────────────────────── */
+/*  DEMO DATA                                  */
+/* ─────────────────────────────────────────── */
+const demoReports = {
+  FALSE: {
+    verdict: 'FALSE',
+    confidence: 0.84,
+    claim_type: 'scientific',
+    claim_text: '5G towers cause COVID-19 symptoms',
+    explanation: 'Multiple Tier-1 scientific institutions including WHO and CDC have found no causal link between 5G radio frequencies and COVID-19 or its symptoms. The coronavirus is a biological pathogen transmitted person-to-person; electromagnetic waves cannot cause viral infections.',
+    llm_provider: 'ollama',
+    processing_ms: 5840,
+    cached: false,
+    early_exit: true,
+    support_bar: { support_pct: 8, contradict_pct: 92 },
+    is_mutation: true,
+    mutation_similarity: 0.82,
+    mutation_original: 'Radiation from cell towers causes flu-like illness',
+    adversarial: true,
+    adversarial_signal: 'COORDINATED_SOURCE_SPAM: 4 low-credibility sources published within 1h',
+    verdict_tags: ['Low credibility sources', 'Early exit triggered', 'Echo chamber detected'],
+    sources: [
+      { name: 'WHO', domain: 'who.int', tier: 1, credibility: 0.97, stance: 'CONTRADICTING', date: 'Mar 2024', shift: +0.02 },
+      { name: 'CDC', domain: 'cdc.gov', tier: 1, credibility: 0.96, stance: 'CONTRADICTING', date: 'Feb 2024', shift: 0 },
+      { name: 'Reuters', domain: 'reuters.com', tier: 1, credibility: 0.93, stance: 'CONTRADICTING', date: 'Jan 2024', shift: +0.01 },
+      { name: 'The Guardian', domain: 'guardian.com', tier: 2, credibility: 0.82, stance: 'CONTRADICTING', date: 'Dec 2023', shift: -0.01 },
+      { name: 'Unknown Blog', domain: 'healthtruth.net', tier: 4, credibility: 0.28, stance: 'SUPPORTING', date: 'Jan 2024', shift: -0.03 },
+    ],
+    sub_claims: [
+      { text: '5G towers emit harmful radiation', verdict: 'FALSE' },
+      { text: 'COVID-19 was man-made', verdict: 'MISLEADING' },
+      { text: 'Masks do not prevent viral spread', verdict: 'FALSE' },
+    ],
+    trace: {
+      support_ratio: 0.087,
+      total_evidence_items: 18,
+      tier1_sources_found: 3,
+      temporal_mismatch: false,
+      echo_chamber_penalty: false,
+      early_exit_triggered: true,
+      event_date: '2024-01-10',
+      utterance_date: '2024-01-15',
+      confidence_raw: 0.89,
+      confidence_final: 0.84,
+      claim_type: 'scientific',
+      threshold_TRUE: 0.75,
+      threshold_FALSE: 0.25,
+    },
+    evidence_graph: {
+      nodes: [
+        { id: 'who.int', tier: 1, stance: 'CONTRADICTING', score: 0.91 },
+        { id: 'cdc.gov', tier: 1, stance: 'CONTRADICTING', score: 0.88 },
+        { id: 'reuters.com', tier: 1, stance: 'CONTRADICTING', score: 0.83 },
+        { id: 'guardian.com', tier: 2, stance: 'CONTRADICTING', score: 0.72 },
+        { id: 'healthtruth.net', tier: 4, stance: 'SUPPORTING', score: 0.21 },
+      ],
+      edges: [
+        { source: 'who.int', target: 'cdc.gov', claim_overlap: 0.85 },
+        { source: 'who.int', target: 'reuters.com', claim_overlap: 0.71 },
+        { source: 'cdc.gov', target: 'guardian.com', claim_overlap: 0.63 },
+      ]
+    },
+    mutation_chain: [
+      { text: 'Radiation from cell towers causes flu-like illness', similarity: 0.82, verdict: 'FALSE', date: '2020-04-10' },
+      { text: 'WiFi signals weaken immune system', similarity: 0.76, verdict: 'FALSE', date: '2020-02-03' },
+    ]
+  },
+
+  TRUE: {
+    verdict: 'TRUE',
+    confidence: 0.91,
+    claim_type: 'breaking_news',
+    claim_text: 'WHO declared mpox a global health emergency',
+    explanation: 'The World Health Organization officially declared mpox (formerly monkeypox) a Public Health Emergency of International Concern in August 2024, citing accelerating spread across multiple continents. This declaration was confirmed by multiple Tier-1 sources including Reuters, AP News, and BBC.',
+    llm_provider: 'ollama',
+    processing_ms: 4200,
+    cached: true,
+    early_exit: false,
+    support_bar: { support_pct: 94, contradict_pct: 6 },
+    is_mutation: false,
+    adversarial: false,
+    verdict_tags: ['3 Tier-1 sources', 'High confidence', 'Multiple corroborating sources'],
+    sources: [
+      { name: 'AP News', domain: 'apnews.com', tier: 1, credibility: 0.95, stance: 'SUPPORTING', date: 'Aug 2024', shift: +0.01 },
+      { name: 'BBC', domain: 'bbc.com', tier: 1, credibility: 0.94, stance: 'SUPPORTING', date: 'Aug 2024', shift: 0 },
+      { name: 'Reuters', domain: 'reuters.com', tier: 1, credibility: 0.93, stance: 'SUPPORTING', date: 'Aug 2024', shift: +0.02 },
+      { name: 'NYT', domain: 'nytimes.com', tier: 2, credibility: 0.85, stance: 'SUPPORTING', date: 'Aug 2024', shift: 0 },
+    ],
+    sub_claims: [
+      { text: 'WHO made an official declaration', verdict: 'TRUE' },
+      { text: 'Mpox spreads across multiple continents', verdict: 'TRUE' },
+      { text: 'Emergency protocols were activated', verdict: 'TRUE' },
+    ],
+    trace: {
+      support_ratio: 0.940,
+      total_evidence_items: 12,
+      tier1_sources_found: 3,
+      temporal_mismatch: false,
+      echo_chamber_penalty: false,
+      early_exit_triggered: false,
+      event_date: '2024-08-14',
+      utterance_date: '2024-08-15',
+      confidence_raw: 0.94,
+      confidence_final: 0.91,
+      claim_type: 'breaking_news',
+      threshold_TRUE: 0.70,
+      threshold_FALSE: 0.30,
+    },
+    evidence_graph: {
+      nodes: [
+        { id: 'apnews.com', tier: 1, stance: 'SUPPORTING', score: 0.93 },
+        { id: 'bbc.com', tier: 1, stance: 'SUPPORTING', score: 0.90 },
+        { id: 'reuters.com', tier: 1, stance: 'SUPPORTING', score: 0.87 },
+        { id: 'nytimes.com', tier: 2, stance: 'SUPPORTING', score: 0.79 },
+      ],
+      edges: [
+        { source: 'apnews.com', target: 'bbc.com', claim_overlap: 0.80 },
+        { source: 'apnews.com', target: 'reuters.com', claim_overlap: 0.75 },
+        { source: 'bbc.com', target: 'nytimes.com', claim_overlap: 0.66 },
+      ]
+    },
+    mutation_chain: []
+  },
+
+  CONFLICTING: {
+    verdict: 'CONFLICTING',
+    confidence: 0.62,
+    claim_type: 'scientific',
+    claim_text: 'New study links coffee to longevity',
+    explanation: 'High-credibility scientific sources disagree on this claim. While several observational studies suggest moderate coffee consumption correlates with longevity markers, other peer-reviewed research highlights confounding variables and warns against establishing causality.',
+    llm_provider: 'gemini',
+    processing_ms: 7100,
+    cached: false,
+    early_exit: false,
+    support_bar: { support_pct: 52, contradict_pct: 48 },
+    is_mutation: false,
+    adversarial: false,
+    verdict_tags: ['Split evidence', 'Scientific claim', 'Peer-reviewed sources'],
+    sources: [
+      { name: 'NEJM', domain: 'nejm.org', tier: 1, credibility: 0.95, stance: 'SUPPORTING', date: 'Nov 2023', shift: 0 },
+      { name: 'The Lancet', domain: 'thelancet.com', tier: 1, credibility: 0.94, stance: 'CONTRADICTING', date: 'Oct 2023', shift: +0.01 },
+      { name: 'Harvard Health', domain: 'health.harvard.edu', tier: 2, credibility: 0.88, stance: 'SUPPORTING', date: 'Sep 2023', shift: 0 },
+      { name: 'BMJ', domain: 'bmj.com', tier: 1, credibility: 0.93, stance: 'CONTRADICTING', date: 'Aug 2023', shift: -0.01 },
+    ],
+    sub_claims: [
+      { text: 'Observational studies show correlation', verdict: 'TRUE' },
+      { text: 'Causal link is established', verdict: 'MISLEADING' },
+      { text: 'Effect is universal across populations', verdict: 'CONFLICTING' },
+    ],
+    trace: {
+      support_ratio: 0.520,
+      total_evidence_items: 14,
+      tier1_sources_found: 4,
+      temporal_mismatch: false,
+      echo_chamber_penalty: false,
+      early_exit_triggered: false,
+      event_date: '2023-11-01',
+      utterance_date: '2023-11-05',
+      confidence_raw: 0.67,
+      confidence_final: 0.62,
+      claim_type: 'scientific',
+      threshold_TRUE: 0.75,
+      threshold_FALSE: 0.25,
+    },
+    evidence_graph: {
+      nodes: [
+        { id: 'nejm.org', tier: 1, stance: 'SUPPORTING', score: 0.88 },
+        { id: 'thelancet.com', tier: 1, stance: 'CONTRADICTING', score: 0.85 },
+        { id: 'health.harvard.edu', tier: 2, stance: 'SUPPORTING', score: 0.74 },
+        { id: 'bmj.com', tier: 1, stance: 'CONTRADICTING', score: 0.80 },
+      ],
+      edges: [
+        { source: 'nejm.org', target: 'thelancet.com', claim_overlap: 0.62 },
+        { source: 'thelancet.com', target: 'bmj.com', claim_overlap: 0.70 },
+      ]
+    },
+    mutation_chain: []
+  },
+
+  MISLEADING: {
+    verdict: 'MISLEADING',
+    confidence: 0.73,
+    claim_type: 'political',
+    claim_text: 'Government secretly tracking citizens via vaccine',
+    explanation: 'While governments have implemented COVID-19 vaccination tracking for public health purposes, the claim that this constitutes secret surveillance is misleading. No credible evidence supports microchip implantation or covert tracking technology in vaccines.',
+    llm_provider: 'ollama',
+    processing_ms: 6300,
+    cached: false,
+    early_exit: false,
+    support_bar: { support_pct: 21, contradict_pct: 79 },
+    is_mutation: true,
+    mutation_similarity: 0.78,
+    mutation_original: 'COVID vaccine has microchips',
+    adversarial: false,
+    verdict_tags: ['Temporal mismatch', 'Context missing', 'Mutation variant'],
+    sources: [
+      { name: 'Reuters', domain: 'reuters.com', tier: 1, credibility: 0.93, stance: 'CONTRADICTING', date: 'Jan 2024', shift: 0 },
+      { name: 'AP News', domain: 'apnews.com', tier: 1, credibility: 0.95, stance: 'CONTRADICTING', date: 'Dec 2023', shift: +0.01 },
+      { name: 'Snopes', domain: 'snopes.com', tier: 2, credibility: 0.80, stance: 'CONTRADICTING', date: 'Nov 2023', shift: 0 },
+    ],
+    sub_claims: [
+      { text: 'Governments track vaccination status', verdict: 'TRUE' },
+      { text: 'Vaccines contain tracking microchips', verdict: 'FALSE' },
+      { text: 'Tracking is secret/covert', verdict: 'FALSE' },
+    ],
+    trace: {
+      support_ratio: 0.210,
+      total_evidence_items: 9,
+      tier1_sources_found: 2,
+      temporal_mismatch: true,
+      echo_chamber_penalty: false,
+      early_exit_triggered: false,
+      event_date: '2021-03-01',
+      utterance_date: '2024-01-10',
+      confidence_raw: 0.78,
+      confidence_final: 0.73,
+      claim_type: 'political',
+      threshold_TRUE: 0.75,
+      threshold_FALSE: 0.25,
+    },
+    evidence_graph: {
+      nodes: [
+        { id: 'reuters.com', tier: 1, stance: 'CONTRADICTING', score: 0.85 },
+        { id: 'apnews.com', tier: 1, stance: 'CONTRADICTING', score: 0.82 },
+        { id: 'snopes.com', tier: 2, stance: 'CONTRADICTING', score: 0.67 },
+      ],
+      edges: [
+        { source: 'reuters.com', target: 'apnews.com', claim_overlap: 0.73 },
+      ]
+    },
+    mutation_chain: [
+      { text: 'COVID vaccine has microchips', similarity: 0.78, verdict: 'FALSE', date: '2021-01-15' },
+    ]
+  },
+
+  UNVERIFIED: {
+    verdict: 'UNVERIFIED',
+    confidence: 0.0,
+    claim_type: 'breaking_news',
+    claim_text: 'Parliament dissolves unexpectedly amid political crisis',
+    explanation: 'Insufficient credible coverage found at verification time. Only 1 source found, below the minimum threshold of 3 required for a definitive verdict. This breaking news story may develop further.',
+    llm_provider: 'rule_based',
+    processing_ms: 2100,
+    cached: false,
+    early_exit: false,
+    support_bar: null,
+    is_mutation: false,
+    adversarial: false,
+    verdict_tags: ['Insufficient sources', 'Breaking news', 'Check back later'],
+    sources: [
+      { name: 'Unknown Source', domain: 'localblog.net', tier: 4, credibility: 0.31, stance: 'SUPPORTING', date: 'Today', shift: 0 },
+    ],
+    sub_claims: [],
+    trace: {
+      support_ratio: 0,
+      total_evidence_items: 0,
+      tier1_sources_found: 0,
+      temporal_mismatch: false,
+      echo_chamber_penalty: false,
+      early_exit_triggered: false,
+      event_date: 'today',
+      utterance_date: 'today',
+      confidence_raw: 0,
+      confidence_final: 0,
+      claim_type: 'breaking_news',
+      threshold_TRUE: 0.70,
+      threshold_FALSE: 0.30,
+    },
+    evidence_graph: { nodes: [], edges: [] },
+    mutation_chain: []
+  }
+};
+
+/* ─────────────────────────────────────────── */
+/*  VIEW SWITCHING                             */
+/* ─────────────────────────────────────────── */
+function switchView(view) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('verifyView').style.display = 'none';
+  document.getElementById('dashboardView').style.display = 'none';
+
+  if (view === 'verify') {
+    document.getElementById('verifyView').style.display = 'block';
+    document.querySelectorAll('.nav-btn')[0].classList.add('active');
+  } else if (view === 'dashboard') {
+    document.getElementById('dashboardView').style.display = 'block';
+    document.querySelectorAll('.nav-btn')[1].classList.add('active');
+  }
+}
+
+/* ─────────────────────────────────────────── */
+/*  PROFILE                                    */
+/* ─────────────────────────────────────────── */
+function cycleProfile() {
+  const idx = profiles.indexOf(currentProfile);
+  currentProfile = profiles[(idx + 1) % profiles.length];
+  document.getElementById('profileLabel').textContent = profileLabels[currentProfile];
+}
+
+/* ─────────────────────────────────────────── */
+/*  CLAIM TYPE                                 */
+/* ─────────────────────────────────────────── */
+function selectType(el, type) {
+  document.querySelectorAll('.claim-type-tag').forEach(t => t.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedType = type;
+}
+
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+
+/* ─────────────────────────────────────────── */
+/*  TAB SWITCHING                              */
+/* ─────────────────────────────────────────── */
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+
+  const tabs = ['overview', 'sources', 'trace', 'subclaims'];
+  const idx = tabs.indexOf(tab);
+  document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+  document.getElementById('tab-' + tab).style.display = 'block';
+  activeTab = tab;
+}
+
+/* ─────────────────────────────────────────── */
+/*  VERIFICATION SIMULATION                    */
+/* ─────────────────────────────────────────── */
+function startVerification() {
+  const claimText = document.getElementById('claimInput').value.trim();
+  if (!claimText) return;
+
+  document.getElementById('verifyBtn').disabled = true;
+  document.getElementById('killerScreen').classList.remove('visible');
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('progressSection').classList.add('visible');
+
+  // Reset dots
+  ['parsing','searching','scoring','explaining','complete'].forEach(s => {
+    const d = document.getElementById('dot-'+s);
+    d.classList.remove('done','active');
+  });
+
+  const stages = [
+    { stage: 'parsing',    progress: 15,  msg: 'Extracting entities & claim type…', dot: 'parsing',    delay: 600 },
+    { stage: 'searching',  progress: 35,  msg: 'Querying 10 sources in parallel…',  dot: 'searching',  delay: 1200 },
+    { stage: 'searching',  progress: 55,  msg: 'Running BART-MNLI batched scoring…', dot: 'scoring',   delay: 1000 },
+    { stage: 'explaining', progress: 80,  msg: 'Generating explanation (Ollama)…',   dot: 'explaining', delay: 1200 },
+    { stage: 'complete',   progress: 100, msg: 'Verdict ready.',                     dot: 'complete',   delay: 600 },
+  ];
+
+  let elapsed = 0;
+  stages.forEach((s, i) => {
+    elapsed += s.delay;
+    setTimeout(() => {
+      document.getElementById('stageText').innerHTML = capitalise(s.stage) + '… <span>' + s.msg + '</span>';
+      document.getElementById('progressFill').style.width = s.progress + '%';
+
+      // update dots
+      if (i > 0) {
+        const prevDot = document.getElementById('dot-' + stages[i-1].dot);
+        if (prevDot) { prevDot.classList.remove('active'); prevDot.classList.add('done'); }
+      }
+      const dot = document.getElementById('dot-' + s.dot);
+      if (dot) dot.classList.add('active');
+
+      if (s.stage === 'complete') {
+        setTimeout(() => {
+          dot.classList.remove('active');
+          dot.classList.add('done');
+          document.getElementById('progressSection').classList.remove('visible');
+          document.getElementById('verifyBtn').disabled = false;
+
+          // Pick a demo verdict to show based on text keywords or random
+          let pick = 'FALSE';
+          const cl = claimText.toLowerCase();
+          if (cl.includes('true') || cl.includes('who') || cl.includes('mpox')) pick = 'TRUE';
+          else if (cl.includes('conflict') || cl.includes('coffee') || cl.includes('study')) pick = 'CONFLICTING';
+          else if (cl.includes('mislead') || cl.includes('vaccin') || cl.includes('track')) pick = 'MISLEADING';
+          else if (cl.includes('unverif') || cl.includes('breaking') || cl.includes('parliament')) pick = 'UNVERIFIED';
+
+          renderReport(demoReports[pick], claimText);
+        }, 400);
+      }
+    }, elapsed);
+  });
+}
+
+function loadDemo(verdict) {
+  switchView('verify');
+  document.getElementById('emptyState').style.display = 'none';
+  const report = demoReports[verdict];
+  document.getElementById('claimInput').value = report.claim_text;
+  autoResize(document.getElementById('claimInput'));
+  renderReport(report, report.claim_text);
+}
+
+function capitalise(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/* ─────────────────────────────────────────── */
+/*  RENDER REPORT                              */
+/* ─────────────────────────────────────────── */
+function renderReport(report, claimText) {
+  currentReport = report;
+  const v = report.verdict;
+
+  // Verdict card
+  const card = document.getElementById('verdictCard');
+  card.className = 'verdict-card vc-' + v;
+
+  const emojis = { TRUE:'✅', FALSE:'❌', MISLEADING:'⚠️', CONFLICTING:'🔀', UNVERIFIED:'❓' };
+  document.getElementById('verdictEmoji').textContent = emojis[v];
+
+  document.getElementById('verdictLabel').className = 'verdict-label vl-' + v;
+  document.getElementById('verdictLabel').textContent = v;
+  document.getElementById('verdictClaim').textContent = '"' + claimText + '"';
+
+  const ctIcons = { breaking_news:'⚡', scientific:'🔬', political:'🏛️', general:'📄' };
+  document.getElementById('claimTypeBadge').innerHTML =
+    (ctIcons[report.claim_type] || '📄') + ' ' + report.claim_type.replace('_', ' ');
+
+  // Confidence ring
+  const pct = Math.round(report.confidence * 100);
+  const circ = 2 * Math.PI * 34;
+  const offset = circ * (1 - report.confidence);
+  const confColors = { TRUE:'#16a34a', FALSE:'#dc2626', MISLEADING:'#d97706', CONFLICTING:'#ea580c', UNVERIFIED:'#6b7280' };
+  document.getElementById('confRing').style.strokeDashoffset = offset;
+  document.getElementById('confRing').setAttribute('stroke', confColors[v]);
+  document.getElementById('confPct').textContent = pct + '%';
+
+  document.getElementById('cachedBadge').style.display = report.cached ? 'inline-flex' : 'none';
+  document.getElementById('processingTime').textContent = report.processing_ms.toLocaleString() + 'ms';
+
+  // Verdict tags
+  const tagsHtml = (report.verdict_tags || []).map(t => `<span class="vtag">${t}</span>`).join('');
+  document.getElementById('verdictTags').innerHTML = tagsHtml;
+
+  // Mutation alert
+  if (report.is_mutation && currentProfile !== 'general') {
+    document.getElementById('mutationAlert').style.display = 'flex';
+    document.getElementById('mutationAlert').querySelector('.mutation-alert-text').innerHTML =
+      `<strong>Mutation Detected</strong>This is a variant of a known claim (similarity: ${report.mutation_similarity})`;
+  } else {
+    document.getElementById('mutationAlert').style.display = 'none';
+  }
+
+  // Adversarial
+  if (report.adversarial) {
+    document.getElementById('adversarialWarning').style.display = 'block';
+    document.getElementById('adversarialWarning').innerHTML =
+      `<strong>⚠️ Adversarial Signal Detected</strong>${report.adversarial_signal}`;
+  } else {
+    document.getElementById('adversarialWarning').style.display = 'none';
+  }
+
+  // Support bar
+  renderSupportBar(report);
+
+  // Explanation
+  document.getElementById('explanationText').textContent = report.explanation;
+  document.getElementById('llmProvider').textContent = report.llm_provider;
+
+  // Sources
+  renderSources(report.sources || []);
+
+  // Trace
+  renderTrace(report.trace);
+
+  // Sub-claims
+  renderSubClaims(report.sub_claims || []);
+
+  // Switch to overview tab
+  switchTab('overview');
+
+  // Show killer screen
+  document.getElementById('killerScreen').classList.add('visible');
+  document.getElementById('emptyState').style.display = 'none';
+
+  // Right panel
+  showRightPanel(report);
+}
+
+function renderSupportBar(report) {
+  const container = document.getElementById('supportBarContent');
+  if (report.verdict === 'UNVERIFIED' && (!report.support_bar || report.trace.total_evidence_items === 0)) {
+    container.innerHTML = `
+      <div class="bar-empty">
+        <p>No evidence collected</p>
+        <small>Sources may cover this later — check back</small>
+      </div>`;
+    return;
+  }
+  const sb = report.support_bar;
+  container.innerHTML = `
+    <div class="bar-row">
+      <div class="bar-label">Support</div>
+      <div class="bar-track"><div class="bar-fill bar-support" style="width:0%" data-pct="${sb.support_pct}"></div></div>
+      <div class="bar-pct">${sb.support_pct}%</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Contradict</div>
+      <div class="bar-track"><div class="bar-fill bar-contradict" style="width:0%" data-pct="${sb.contradict_pct}"></div></div>
+      <div class="bar-pct">${sb.contradict_pct}%</div>
+    </div>`;
+  setTimeout(() => {
+    container.querySelectorAll('.bar-fill[data-pct]').forEach(el => {
+      el.style.width = el.dataset.pct + '%';
+    });
+  }, 50);
+}
+
+function renderSources(sources) {
+  const maxSources = currentProfile === 'general' ? 3 : currentProfile === 'journalist' ? 10 : sources.length;
+  const shown = sources.slice(0, maxSources);
+  const icons = { 1:'🏛️', 2:'📰', 3:'📄', 4:'🌐', 5:'⚠️' };
+  document.getElementById('sourcesContent').innerHTML = shown.map(s => `
+    <div class="source-card">
+      <div class="source-favicon">${icons[s.tier] || '🌐'}</div>
+      <div class="source-info">
+        <div class="source-name">${s.name}</div>
+        <div class="source-meta">
+          <span class="tier-badge t${s.tier}">T${s.tier}</span>
+          <span class="source-date">${s.date}</span>
+        </div>
+        <div class="credibility-bar-mini">
+          <div class="credibility-fill" style="width:${Math.round(s.credibility*100)}%"></div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div class="source-stance ss-${s.stance}"></div>
+        ${s.shift !== 0 ? `<div class="credibility-shift ${s.shift > 0 ? 'shift-up' : 'shift-down'}">${s.shift > 0 ? '↑' : '↓'}${Math.abs(s.shift).toFixed(2)}</div>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderTrace(trace) {
+  if (!trace) return;
+  const items = [
+    { key: 'Support Ratio', val: (trace.support_ratio * 100).toFixed(1) + '%' },
+    { key: 'Evidence Items', val: trace.total_evidence_items },
+    { key: 'Tier-1 Sources', val: trace.tier1_sources_found },
+    { key: 'Claim Type', val: trace.claim_type },
+    { key: 'TRUE Threshold', val: (trace.threshold_TRUE * 100).toFixed(0) + '%' },
+    { key: 'FALSE Threshold', val: (trace.threshold_FALSE * 100).toFixed(0) + '%' },
+    { key: 'Conf (raw)', val: (trace.confidence_raw * 100).toFixed(1) + '%' },
+    { key: 'Conf (final)', val: (trace.confidence_final * 100).toFixed(0) + '%' },
+  ];
+
+  const flags = [
+    { key: 'Temporal Mismatch', val: trace.temporal_mismatch },
+    { key: 'Echo Chamber', val: trace.echo_chamber_penalty },
+    { key: 'Early Exit', val: trace.early_exit_triggered },
+  ];
+
+  document.getElementById('traceGrid').innerHTML = items.map(i => `
+    <div class="trace-item">
+      <div class="trace-key">${i.key}</div>
+      <div class="trace-value">${i.val}</div>
+    </div>`).join('') + flags.map(f => `
+    <div class="trace-item">
+      <div class="trace-key">${f.key}</div>
+      <div class="trace-value trace-flag">
+        <div class="flag-dot ${f.val ? 'flag-on' : 'flag-off'}"></div>
+        ${f.val ? 'YES' : 'NO'}
+      </div>
+    </div>`).join('') + `
+    <div class="trace-item">
+      <div class="trace-key">Event Date</div>
+      <div class="trace-value">${trace.event_date}</div>
+    </div>
+    <div class="trace-item">
+      <div class="trace-key">Utterance Date</div>
+      <div class="trace-value">${trace.utterance_date}</div>
+    </div>`;
+}
+
+function renderSubClaims(subclaims) {
+  const icons = { TRUE:'✅', FALSE:'❌', MISLEADING:'⚠️', CONFLICTING:'🔀', UNVERIFIED:'❓' };
+  if (!subclaims.length) {
+    document.getElementById('subclaimsContent').innerHTML = '<p style="font-size:13px;color:var(--gray-400);">No sub-claims extracted.</p>';
+    return;
+  }
+  document.getElementById('subclaimsContent').innerHTML = subclaims.map(sc => `
+    <div class="subclaim-row">
+      <span class="subclaim-icon">${icons[sc.verdict]}</span>
+      <span class="subclaim-text">${sc.text}</span>
+      <span class="subclaim-badge v-${sc.verdict}">${sc.verdict}</span>
+    </div>`).join('');
+}
+
+/* ─────────────────────────────────────────── */
+/*  RIGHT PANEL                                */
+/* ─────────────────────────────────────────── */
+function showRightPanel(report) {
+  document.getElementById('rightDefault').style.display = 'none';
+
+  const showGraph = currentProfile !== 'general';
+  document.getElementById('graphPanel').style.display = showGraph ? 'block' : 'none';
+  if (showGraph) drawGraph(report.evidence_graph);
+
+  document.getElementById('timelinePanel').style.display = showGraph ? 'block' : 'none';
+  if (showGraph) renderTimeline(report.sources || []);
+
+  const showMutation = report.is_mutation && currentProfile !== 'general';
+  document.getElementById('mutationPanel').style.display = showMutation ? 'block' : 'none';
+  if (showMutation) renderMutationChain(report.mutation_chain || []);
+
+  document.getElementById('feedbackPanel').style.display = 'block';
+
+  if (!showGraph && !showMutation) {
+    document.getElementById('rightDefault').style.display = 'block';
+  }
+}
+
+/* ─────────────────────────────────────────── */
+/*  EVIDENCE GRAPH CANVAS                      */
+/* ─────────────────────────────────────────── */
+function drawGraph(graphData) {
+  const canvas = document.getElementById('graphCanvas');
+  const container = canvas.parentElement;
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  if (!graphData || !graphData.nodes || !graphData.nodes.length) {
+    ctx.fillStyle = '#9e9e9c';
+    ctx.font = '13px DM Sans';
+    ctx.textAlign = 'center';
+    ctx.fillText('No evidence graph available', W/2, H/2);
+    return;
+  }
+
+  const nodes = graphData.nodes.map((n, i) => ({
+    ...n,
+    x: W/2 + Math.cos(i / graphData.nodes.length * 2 * Math.PI) * (W * 0.3),
+    y: H/2 + Math.sin(i / graphData.nodes.length * 2 * Math.PI) * (H * 0.35),
+  }));
+
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id] = n);
+
+  const stanceColors = { SUPPORTING:'#16a34a', CONTRADICTING:'#dc2626', NEUTRAL:'#9ca3af' };
+
+  ctx.clearRect(0, 0, W, H);
+
+  // edges
+  (graphData.edges || []).forEach(e => {
+    const s = nodeMap[e.source], t = nodeMap[e.target];
+    if (!s || !t) return;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(t.x, t.y);
+    ctx.strokeStyle = '#d1d5db';
+    ctx.lineWidth = e.claim_overlap * 3;
+    ctx.stroke();
+  });
+
+  // nodes
+  nodes.forEach(n => {
+    const r = 10 + (1 - (n.tier - 1) * 0.15) * 8;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = stanceColors[n.stance] || '#9ca3af';
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // label
+    ctx.fillStyle = '#2a2a28';
+    ctx.font = '10px DM Mono';
+    ctx.textAlign = 'center';
+    const label = n.id.replace('www.', '').split('.')[0];
+    ctx.fillText(label, n.x, n.y + r + 13);
+  });
+}
+
+function renderTimeline(sources) {
+  const sorted = [...sources].sort((a, b) => a.date < b.date ? -1 : 1);
+  const stanceColors = { SUPPORTING:'var(--green)', CONTRADICTING:'var(--red)', NEUTRAL:'var(--gray-400)' };
+  document.getElementById('timelineTrack').innerHTML = sorted.map(s => `
+    <div class="timeline-node">
+      <div class="timeline-dot" style="background:${stanceColors[s.stance] || 'var(--gray-400)'}"></div>
+      <div class="timeline-name">${s.name}</div>
+      <div class="timeline-meta">${s.date} · ${s.stance}</div>
+    </div>`).join('');
+}
+
+function renderMutationChain(chain) {
+  if (!chain.length) { document.getElementById('mutationContent').innerHTML = ''; return; }
+  document.getElementById('mutationContent').innerHTML = chain.map(v => `
+    <div class="mutation-variant">
+      <div class="mutation-variant-text">"${v.text}"</div>
+      <div class="mutation-sim">sim: ${v.similarity} · ${v.verdict} · ${v.date}</div>
+    </div>`).join('');
+}
+
+/* ─────────────────────────────────────────── */
+/*  FEEDBACK                                   */
+/* ─────────────────────────────────────────── */
+function submitFeedback(rating) {
+  const panel = document.getElementById('feedbackPanel');
+  panel.innerHTML = `
+    <div class="section-title">Feedback submitted</div>
+    <p style="font-size:13px;color:var(--gray-400);margin-top:6px;">
+      ${rating === 'correct' ? '👍 Thanks! Credibility scores updated.' : '👎 Noted. We\'ll review this verdict.'}
+    </p>`;
+}
+
+/* ─────────────────────────────────────────── */
+/*  IMAGE DRAG & DROP                          */
+/* ─────────────────────────────────────────── */
+let attachedImageFile = null;
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('imageDropZone').classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('imageDropZone').classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  document.getElementById('imageDropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) {
+    loadImageFile(file);
+  }
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadImageFile(file);
+  e.target.value = '';
+}
+
+function loadImageFile(file) {
+  attachedImageFile = file;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const dataUrl = ev.target.result;
+
+    // Show preview
+    document.getElementById('imagePreviewThumb').src = dataUrl;
+    document.getElementById('imagePreviewName').textContent = file.name;
+    document.getElementById('imagePreviewMeta').textContent =
+      (file.size / 1024).toFixed(1) + ' KB · ' + file.type.replace('image/', '').toUpperCase();
+
+    const wrap = document.getElementById('imagePreviewWrap');
+    wrap.classList.add('visible');
+
+    const zone = document.getElementById('imageDropZone');
+    zone.classList.add('has-image');
+    zone.querySelector('.drop-label').textContent = 'Image attached ✓';
+    zone.querySelector('.drop-hint').textContent = 'Click or drop to replace';
+    zone.querySelector('.drop-icon').textContent = '✅';
+
+    // Simulate OCR extraction (demo): pull filename as hint + mock text
+    simulateOCR(file.name, dataUrl);
+  };
+  reader.readAsDataURL(file);
+}
+
+function simulateOCR(filename, dataUrl) {
+  const ocrWrap = document.getElementById('imagePreviewOcr');
+  const ocrText = document.getElementById('imageOcrText');
+
+  // Show a loading state
+  ocrWrap.style.display = 'block';
+  ocrText.textContent = 'Extracting text from image…';
+
+  // Simulate a brief processing delay, then inject text into claim input
+  setTimeout(() => {
+    const mockExtracted = 'Text extracted from ' + filename.replace(/\.[^.]+$/, '') +
+      ' — edit or replace with the claim you want to verify.';
+    ocrText.textContent = mockExtracted;
+
+    // Pre-fill claim input only if it is empty
+    const claimInput = document.getElementById('claimInput');
+    if (!claimInput.value.trim()) {
+      claimInput.value = mockExtracted;
+      autoResize(claimInput);
+    }
+  }, 900);
+}
+
+function removeImage() {
+  attachedImageFile = null;
+
+  document.getElementById('imagePreviewWrap').classList.remove('visible');
+  document.getElementById('imagePreviewThumb').src = '';
+  document.getElementById('imagePreviewOcr').style.display = 'none';
+  document.getElementById('imageOcrText').textContent = '';
+
+  const zone = document.getElementById('imageDropZone');
+  zone.classList.remove('has-image', 'drag-over');
+  zone.querySelector('.drop-label').textContent = 'Attach an image to verify';
+  zone.querySelector('.drop-hint').textContent = 'Drag & drop a screenshot, headline, or photo — text will be extracted';
+  zone.querySelector('.drop-icon').textContent = '🖼️';
+}
+
+/* ─────────────────────────────────────────── */
+/*  KEYBOARD SHORTCUT                          */
+/* ─────────────────────────────────────────── */
+document.getElementById('claimInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    startVerification();
+  }
+});
+
+/* init */
+document.getElementById('emptyState').style.display = 'block';
+</script>
 </body>
-
 </html>

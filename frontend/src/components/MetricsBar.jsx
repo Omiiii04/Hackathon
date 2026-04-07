@@ -2,55 +2,83 @@ import React, { useState, useEffect } from 'react';
 
 export function MetricsBar() {
   const [time, setTime] = useState(new Date().toLocaleTimeString('en-GB'));
+  const [date, setDate] = useState(
+    new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  );
 
   useEffect(() => {
-    const timer = setInterval(() => setTime(new Date().toLocaleTimeString('en-GB')), 1000);
+    const timer = setInterval(() => {
+      const now = new Date();
+      setTime(now.toLocaleTimeString('en-GB'));
+      setDate(now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }));
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
   return (
-    <div className="glass-panel" style={{
-      borderRadius: '0 0 24px 24px',
-      borderTop: 'none',
-      padding: '20px 40px',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '30px',
-      boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px',
-        fontSize: '24px',
-        fontWeight: '800',
-        letterSpacing: '3px'
-      }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #60a5fa, #3b82f6)',
-          padding: '8px',
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 0 15px var(--accent-blue-glow)'
-        }}>
-          <span style={{ fontSize: '20px', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.4))' }}>🛡️</span>
+    <header>
+      {/* Logo */}
+      <div className="logo">
+        <div className="logo-icon">🛡️</div>
+        <div className="logo-text">
+          OSINT <span>Verify</span>
         </div>
-        <span className="text-gradient" style={{ textShadow: '0 0 20px var(--accent-blue-glow)' }}>
-          OSINT Engine
-        </span>
       </div>
 
-      <div className="font-mono text-gradient" style={{
-        fontSize: '32px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-        textShadow: '0 0 15px var(--accent-blue-glow)'
-      }}>
-        {time}
+      {/* Nav */}
+      <nav>
+        <button className="nav-btn active" onClick={() => window.switchView?.('verify')}>
+          Verify
+        </button>
+        <button className="nav-btn" onClick={() => window.switchView?.('dashboard')}>
+          Dashboard
+        </button>
+      </nav>
+
+      {/* Right side — status + clock */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            fontSize: '12px',
+            color: 'var(--gray-600)',
+          }}
+        >
+          <span
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: 'var(--green)',
+              display: 'inline-block',
+            }}
+          />
+          Systems Operational
+        </div>
+
+        <div
+          style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: '13px',
+            color: 'var(--gray-600)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {time} · {date}
+        </div>
+
+        <div
+          className="profile-badge"
+          onClick={() => window.cycleProfile?.()}
+          title="Click to cycle profile"
+        >
+          <div className="profile-dot" />
+          <span id="profileLabel">General</span>
+          <span style={{ color: 'var(--gray-400)', fontSize: '11px' }}>▾</span>
+        </div>
       </div>
-    </div>
+    </header>
   );
 }
