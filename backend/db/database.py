@@ -14,6 +14,7 @@ import logging
 from typing import Optional
 
 import asyncpg
+from pgvector.asyncpg import register_vector
 
 from config import settings
 
@@ -37,8 +38,13 @@ async def get_pool() -> asyncpg.Pool:
                 max_size=10,
                 command_timeout=30,
                 # pgvector type codec registration
-                init=_register_vector_codec,
+                # init=_register_vector_codec,
             )
+
+            async with _pool.acquire() as conn:
+                await register_vector(conn)
+
+
             logger.info("[DB] ✅ Connection pool ready")
         except Exception as e:
             logger.error(f"[DB] ❌ Connection failed: {e}")
