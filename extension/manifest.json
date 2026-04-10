@@ -6,7 +6,7 @@
   "permissions": ["contextMenus", "activeTab", "scripting", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "action": {
-    "default_title": "OSINT Verify"
+    "default_title": "OSINT Engine"
   },
   "background": {
     "service_worker": "background.js"

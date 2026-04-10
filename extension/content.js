@@ -1,5 +1,5 @@
 // content.js
-console.log("OSINT Verify: Content script loaded.");
+console.log("OSINT Engine: Content script loaded.");
 
 // Listen for highlighting or other page-side tasks
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {

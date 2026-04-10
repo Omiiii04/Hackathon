@@ -1215,6 +1215,114 @@
   .empty-state .es-title { font-size: 1rem; font-weight: 600; color: var(--gray-600); margin-bottom: 6px; }
   .empty-state .es-text { font-size: 13px; }
 
+  /* ── REPORT GENERATION ── */
+  .report-section {
+    background: var(--white);
+    border: 1px solid var(--gray-100);
+    border-radius: 12px;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+    display: none;
+  }
+
+  .report-section.visible { display: block; animation: fadeIn 0.3s ease; }
+
+  .report-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+
+  .report-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-400);
+  }
+
+  .report-description {
+    font-size: 12px;
+    color: var(--gray-400);
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+
+  .report-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .report-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.18s;
+    text-decoration: none;
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
+  }
+
+  .report-btn .btn-icon { font-size: 16px; }
+  .report-btn .btn-text { display: flex; flex-direction: column; line-height: 1.2; }
+  .report-btn .btn-label { font-size: 13px; font-weight: 600; }
+  .report-btn .btn-sub { font-size: 10px; font-weight: 400; opacity: 0.75; }
+
+  .report-btn-html {
+    background: var(--accent-light);
+    color: var(--accent);
+    border-color: #c7cbf7;
+  }
+  .report-btn-html:hover { background: #dde0ff; border-color: var(--accent); }
+
+  .report-btn-word {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+  }
+  .report-btn-word:hover { background: #bfdbfe; border-color: #1d4ed8; }
+
+  .report-btn-pdf {
+    background: var(--red-light);
+    color: var(--red);
+    border-color: var(--red-border);
+  }
+  .report-btn-pdf:hover { background: #fecaca; border-color: var(--red); }
+
+  .report-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+
+  .report-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.08); }
+  .report-btn:not(:disabled):active { transform: translateY(0); }
+
+  .report-success-toast {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: var(--green-light);
+    border: 1px solid var(--green-border);
+    border-radius: 8px;
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--green);
+    font-weight: 500;
+  }
+  .report-success-toast.visible { display: flex; animation: fadeIn 0.3s ease; }
+
   /* scrollbar */
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -1491,6 +1599,42 @@
           <div class="subclaims-section">
             <div class="section-title">Claim Breakdown</div>
             <div id="subclaimsContent"></div>
+          </div>
+        </div>
+
+        <!-- REPORT GENERATION -->
+        <div class="report-section" id="reportSection">
+          <div class="report-section-header">
+            <div class="report-section-title">📄 Export Report</div>
+          </div>
+          <div class="report-description">
+            Download this verification result as a formatted report in your preferred format.
+          </div>
+          <div class="report-buttons">
+            <button class="report-btn report-btn-html" onclick="exportReport('html')" id="btnHtml">
+              <span class="btn-icon">🌐</span>
+              <span class="btn-text">
+                <span class="btn-label">HTML</span>
+                <span class="btn-sub">Web page</span>
+              </span>
+            </button>
+            <button class="report-btn report-btn-word" onclick="exportReport('docx')" id="btnWord">
+              <span class="btn-icon">📝</span>
+              <span class="btn-text">
+                <span class="btn-label">Word</span>
+                <span class="btn-sub">.docx file</span>
+              </span>
+            </button>
+            <button class="report-btn report-btn-pdf" onclick="exportReport('pdf')" id="btnPdf">
+              <span class="btn-icon">📕</span>
+              <span class="btn-text">
+                <span class="btn-label">PDF</span>
+                <span class="btn-sub">Print-ready</span>
+              </span>
+            </button>
+          </div>
+          <div class="report-success-toast" id="reportToast">
+            ✅ <span id="reportToastMsg">Report downloaded successfully.</span>
           </div>
         </div>
 
@@ -2127,6 +2271,9 @@ function renderReport(report, claimText) {
   document.getElementById('killerScreen').classList.add('visible');
   document.getElementById('emptyState').style.display = 'none';
 
+  // Show report export section
+  showReportSection();
+
   // Right panel
   showRightPanel(report);
 }
@@ -2470,6 +2617,499 @@ document.getElementById('claimInput').addEventListener('keydown', e => {
 
 /* init */
 document.getElementById('emptyState').style.display = 'block';
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
+<script>
+/* ─────────────────────────────────────────── */
+/*  REPORT GENERATION                          */
+/* ─────────────────────────────────────────── */
+
+function showReportSection() {
+  document.getElementById('reportSection').classList.add('visible');
+}
+
+function hideReportToast() {
+  document.getElementById('reportToast').classList.remove('visible');
+}
+
+function showReportToast(msg) {
+  const el = document.getElementById('reportToast');
+  document.getElementById('reportToastMsg').textContent = msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 3500);
+}
+
+function getReportData() {
+  if (!currentReport) return null;
+  const r = currentReport;
+  const verdictColors = {
+    TRUE: '#15803d', FALSE: '#991b1b', MISLEADING: '#92400e',
+    CONFLICTING: '#9a3412', UNVERIFIED: '#374151'
+  };
+  const verdictBg = {
+    TRUE: '#f0fdf4', FALSE: '#fff5f5', MISLEADING: '#fffbeb',
+    CONFLICTING: '#fff7ed', UNVERIFIED: '#f3f4f6'
+  };
+  return {
+    ...r,
+    verdictColor: verdictColors[r.verdict] || '#111110',
+    verdictBg: verdictBg[r.verdict] || '#f8f8f6',
+    confPct: Math.round((r.confidence || 0) * 100),
+    generatedAt: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+    supportPct: r.support_bar?.support_pct ?? 0,
+    contradictPct: r.support_bar?.contradict_pct ?? 0,
+  };
+}
+
+/* ── HTML EXPORT ── */
+function exportHTML(d) {
+  const sourceRows = (d.sources || []).map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td>${s.domain}</td>
+      <td>Tier ${s.tier}</td>
+      <td>${Math.round(s.credibility * 100)}%</td>
+      <td style="color:${s.stance === 'SUPPORTING' ? '#15803d' : s.stance === 'CONTRADICTING' ? '#991b1b' : '#6b7280'}">${s.stance}</td>
+      <td>${s.date}</td>
+    </tr>`).join('');
+
+  const subRows = (d.sub_claims || []).map(sc => `
+    <tr>
+      <td>${sc.text}</td>
+      <td style="font-weight:600;color:${sc.verdict === 'TRUE' ? '#15803d' : sc.verdict === 'FALSE' ? '#991b1b' : '#92400e'}">${sc.verdict}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>OSINT Verification Report</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 860px; margin: 0 auto; padding: 40px 24px; color: #111; background: #fff; font-size: 14px; }
+  h1 { font-size: 26px; margin-bottom: 4px; color: #1a1a8c; }
+  .meta { color: #9e9e9c; font-size: 12px; margin-bottom: 28px; }
+  .verdict-card { background: ${d.verdictBg}; border-left: 5px solid ${d.verdictColor}; border-radius: 10px; padding: 20px 24px; margin-bottom: 24px; }
+  .verdict-label { font-size: 32px; font-weight: 800; color: ${d.verdictColor}; margin-bottom: 4px; }
+  .claim-text { font-style: italic; color: #5a5a58; font-size: 14px; margin-bottom: 10px; }
+  .conf-row { display: flex; gap: 20px; font-size: 13px; color: #5a5a58; }
+  .conf-row span { font-weight: 700; color: #111; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; color: #9e9e9c; margin: 28px 0 10px; border-bottom: 1px solid #ebebea; padding-bottom: 6px; }
+  p.explanation { font-size: 14px; line-height: 1.7; color: #2a2a28; }
+  .bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .bar-label { width: 100px; font-size: 13px; color: #5a5a58; }
+  .bar-outer { flex: 1; height: 10px; background: #ebebea; border-radius: 5px; overflow: hidden; }
+  .bar-inner { height: 100%; border-radius: 5px; }
+  .bar-pct { width: 40px; text-align: right; font-size: 13px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f5f5f3; text-align: left; padding: 8px 10px; border-bottom: 2px solid #d9d9d7; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #9e9e9c; }
+  td { padding: 8px 10px; border-bottom: 1px solid #ebebea; }
+  tr:last-child td { border-bottom: none; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .tag { background: #fff; border: 1px solid #d9d9d7; padding: 3px 10px; border-radius: 12px; font-size: 11px; color: #5a5a58; }
+  .footer { margin-top: 40px; padding-top: 12px; border-top: 1px solid #ebebea; font-size: 11px; color: #9e9e9c; }
+</style>
+</head>
+<body>
+<h1>🔍 OSINTVerify — Verification Report</h1>
+<div class="meta">Generated ${d.generatedAt} · Platform v5.2.0 · LLM: ${d.llm_provider || 'ollama'}</div>
+
+<div class="verdict-card">
+  <div class="verdict-label">${d.verdict}</div>
+  <div class="claim-text">"${d.claim_text}"</div>
+  <div class="conf-row">
+    <div>Confidence: <span>${d.confPct}%</span></div>
+    <div>Type: <span>${d.claim_type || 'General'}</span></div>
+    <div>Processing: <span>${d.processing_ms || '—'}ms</span></div>
+  </div>
+  ${(d.verdict_tags || []).length ? `<div class="tags">${(d.verdict_tags || []).map(t => `<span class="tag">${t}</span>`).join('')}</div>` : ''}
+</div>
+
+<h2>Evidence Support</h2>
+<div class="bar-row">
+  <div class="bar-label">Supporting</div>
+  <div class="bar-outer"><div class="bar-inner" style="width:${d.supportPct}%;background:#16a34a"></div></div>
+  <div class="bar-pct" style="color:#16a34a">${d.supportPct}%</div>
+</div>
+<div class="bar-row">
+  <div class="bar-label">Contradicting</div>
+  <div class="bar-outer"><div class="bar-inner" style="width:${d.contradictPct}%;background:#dc2626"></div></div>
+  <div class="bar-pct" style="color:#dc2626">${d.contradictPct}%</div>
+</div>
+
+<h2>Explanation</h2>
+<p class="explanation">${d.explanation || 'No explanation available.'}</p>
+
+${(d.sources || []).length ? `
+<h2>Sources (${d.sources.length})</h2>
+<table>
+  <thead><tr><th>Name</th><th>Domain</th><th>Tier</th><th>Credibility</th><th>Stance</th><th>Date</th></tr></thead>
+  <tbody>${sourceRows}</tbody>
+</table>` : ''}
+
+${(d.sub_claims || []).length ? `
+<h2>Sub-Claim Breakdown</h2>
+<table>
+  <thead><tr><th>Claim</th><th>Verdict</th></tr></thead>
+  <tbody>${subRows}</tbody>
+</table>` : ''}
+
+<div class="footer">OSINTVerify Platform v5.2.0 · Report generated ${d.generatedAt}</div>
+</body>
+</html>`;
+  downloadFile('osint-report.html', html, 'text/html');
+  showReportToast('HTML report downloaded.');
+}
+
+/* ── WORD (DOCX) EXPORT ── */
+async function exportDOCX(d) {
+  if (typeof docx === 'undefined') {
+    showReportToast('Word export library not loaded. Please check your internet connection.');
+    return;
+  }
+  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+          HeadingLevel, AlignmentType, BorderStyle, WidthType, ShadingType } = docx;
+
+  const border = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' };
+  const borders = { top: border, bottom: border, left: border, right: border };
+
+  const verdictBgHex = {
+    TRUE: 'F0FDF4', FALSE: 'FFF5F5', MISLEADING: 'FFFBEB',
+    CONFLICTING: 'FFF7ED', UNVERIFIED: 'F3F4F6'
+  };
+  const verdictColorHex = {
+    TRUE: '15803D', FALSE: '991B1B', MISLEADING: '92400E',
+    CONFLICTING: '9A3412', UNVERIFIED: '374151'
+  };
+
+  const paragraphs = [];
+
+  // Title
+  paragraphs.push(new Paragraph({
+    heading: HeadingLevel.HEADING_1,
+    children: [new TextRun({ text: 'OSINTVerify — Verification Report', bold: true, size: 36, color: '1A1A8C' })]
+  }));
+  paragraphs.push(new Paragraph({
+    children: [new TextRun({ text: `Generated ${d.generatedAt} · Platform v5.2.0 · LLM: ${d.llm_provider || 'ollama'}`, color: '9E9E9C', size: 20 })]
+  }));
+  paragraphs.push(new Paragraph({ children: [] }));
+
+  // Verdict card
+  paragraphs.push(new Paragraph({
+    shading: { fill: verdictBgHex[d.verdict] || 'F8F8F6', type: ShadingType.CLEAR },
+    border: { left: { style: BorderStyle.SINGLE, size: 18, color: verdictColorHex[d.verdict] || '111110', space: 6 } },
+    children: [new TextRun({ text: d.verdict, bold: true, size: 52, color: verdictColorHex[d.verdict] || '111110' })]
+  }));
+  paragraphs.push(new Paragraph({
+    children: [new TextRun({ text: `"${d.claim_text}"`, italics: true, size: 24, color: '5A5A58' })]
+  }));
+  paragraphs.push(new Paragraph({
+    children: [
+      new TextRun({ text: `Confidence: `, size: 22, color: '5A5A58' }),
+      new TextRun({ text: `${d.confPct}%`, bold: true, size: 22 }),
+      new TextRun({ text: `   Type: `, size: 22, color: '5A5A58' }),
+      new TextRun({ text: `${d.claim_type || 'General'}`, bold: true, size: 22 }),
+      new TextRun({ text: `   Processing: `, size: 22, color: '5A5A58' }),
+      new TextRun({ text: `${d.processing_ms || '—'}ms`, bold: true, size: 22 }),
+    ]
+  }));
+  if ((d.verdict_tags || []).length) {
+    paragraphs.push(new Paragraph({
+      children: [new TextRun({ text: `Tags: ${d.verdict_tags.join(' · ')}`, size: 20, color: '5A5A58' })]
+    }));
+  }
+  paragraphs.push(new Paragraph({ children: [] }));
+
+  // Evidence support
+  paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Evidence Support', bold: true, size: 28 })] }));
+  paragraphs.push(new Paragraph({ children: [new TextRun({ text: `Supporting: ${d.supportPct}%   Contradicting: ${d.contradictPct}%`, size: 22 })] }));
+  paragraphs.push(new Paragraph({ children: [] }));
+
+  // Explanation
+  paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Explanation', bold: true, size: 28 })] }));
+  paragraphs.push(new Paragraph({ children: [new TextRun({ text: d.explanation || 'No explanation available.', size: 22 })] }));
+  paragraphs.push(new Paragraph({ children: [] }));
+
+  const children = [...paragraphs];
+
+  // Sources table
+  if ((d.sources || []).length) {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: `Sources (${d.sources.length})`, bold: true, size: 28 })] }));
+    const colW = [1800, 2000, 900, 1200, 1500, 1200];
+    const totalW = colW.reduce((a, b) => a + b, 0);
+    const headerRow = new TableRow({
+      children: ['Name', 'Domain', 'Tier', 'Credibility', 'Stance', 'Date'].map((h, i) =>
+        new TableCell({
+          borders, width: { size: colW[i], type: WidthType.DXA },
+          shading: { fill: 'F5F5F3', type: ShadingType.CLEAR },
+          margins: { top: 60, bottom: 60, left: 100, right: 100 },
+          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18, color: '9E9E9C' })] })]
+        })
+      )
+    });
+    const sourceRows2 = (d.sources || []).map(s =>
+      new TableRow({
+        children: [
+          s.name, s.domain, `Tier ${s.tier}`,
+          `${Math.round(s.credibility * 100)}%`, s.stance, s.date
+        ].map((val, i) => new TableCell({
+          borders, width: { size: colW[i], type: WidthType.DXA },
+          margins: { top: 60, bottom: 60, left: 100, right: 100 },
+          children: [new Paragraph({ children: [new TextRun({ text: val, size: 20 })] })]
+        }))
+      })
+    );
+    children.push(new Table({ width: { size: totalW, type: WidthType.DXA }, columnWidths: colW, rows: [headerRow, ...sourceRows2] }));
+    children.push(new Paragraph({ children: [] }));
+  }
+
+  // Sub-claims table
+  if ((d.sub_claims || []).length) {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Sub-Claim Breakdown', bold: true, size: 28 })] }));
+    const scColW = [7200, 1760];
+    const scTotal = scColW.reduce((a, b) => a + b, 0);
+    const scHeader = new TableRow({
+      children: ['Claim', 'Verdict'].map((h, i) =>
+        new TableCell({
+          borders, width: { size: scColW[i], type: WidthType.DXA },
+          shading: { fill: 'F5F5F3', type: ShadingType.CLEAR },
+          margins: { top: 60, bottom: 60, left: 100, right: 100 },
+          children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 18, color: '9E9E9C' })] })]
+        })
+      )
+    });
+    const scRows = (d.sub_claims || []).map(sc =>
+      new TableRow({
+        children: [sc.text, sc.verdict].map((val, i) => new TableCell({
+          borders, width: { size: scColW[i], type: WidthType.DXA },
+          margins: { top: 60, bottom: 60, left: 100, right: 100 },
+          children: [new Paragraph({ children: [new TextRun({ text: val, size: 20, bold: i === 1 })] })]
+        }))
+      })
+    );
+    children.push(new Table({ width: { size: scTotal, type: WidthType.DXA }, columnWidths: scColW, rows: [scHeader, ...scRows] }));
+  }
+
+  // Footer
+  children.push(new Paragraph({ children: [] }));
+  children.push(new Paragraph({ children: [new TextRun({ text: `OSINTVerify Platform v5.2.0 · Report generated ${d.generatedAt}`, size: 18, color: '9E9E9C' })] }));
+
+  const doc = new Document({
+    styles: {
+      default: { document: { run: { font: 'Arial', size: 22 } } },
+      paragraphStyles: [
+        { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { size: 36, bold: true, font: 'Arial', color: '1A1A8C' },
+          paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 0 } },
+        { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { size: 28, bold: true, font: 'Arial', color: '2A2A28' },
+          paragraph: { spacing: { before: 200, after: 80 }, outlineLevel: 1 } },
+      ]
+    },
+    sections: [{
+      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+      children
+    }]
+  });
+
+  const buffer = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(buffer);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'osint-report.docx';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  showReportToast('Word document downloaded.');
+}
+
+/* ── PDF EXPORT ── */
+function exportPDF(d) {
+  if (typeof window.jspdf === 'undefined') {
+    showReportToast('PDF library not loaded. Please check your internet connection.');
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth();
+  const H = doc.internal.pageSize.getHeight();
+  const margin = 48;
+  const contentW = W - margin * 2;
+  let y = margin;
+
+  const verdictColors = {
+    TRUE: [21, 128, 61], FALSE: [153, 27, 27], MISLEADING: [146, 64, 14],
+    CONFLICTING: [154, 52, 18], UNVERIFIED: [55, 65, 81]
+  };
+  const verdictBgs = {
+    TRUE: [240, 253, 244], FALSE: [255, 245, 245], MISLEADING: [255, 251, 235],
+    CONFLICTING: [255, 247, 237], UNVERIFIED: [243, 244, 246]
+  };
+
+  function checkPage(needed = 40) {
+    if (y + needed > H - margin) { doc.addPage(); y = margin; }
+  }
+
+  function sectionHead(text) {
+    checkPage(36);
+    y += 10;
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(158, 158, 156);
+    doc.text(text.toUpperCase(), margin, y);
+    y += 4;
+    doc.setDrawColor(235, 235, 234); doc.setLineWidth(0.5);
+    doc.line(margin, y, W - margin, y);
+    y += 14;
+    doc.setTextColor(17, 17, 16);
+  }
+
+  // Header bar
+  doc.setFillColor(26, 26, 140);
+  doc.rect(0, 0, W, 52, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+  doc.text('OSINTVerify — Verification Report', margin, 33);
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  doc.text(`Generated ${d.generatedAt}`, margin, 46);
+  y = 74;
+
+  // Verdict card
+  const vc = verdictBgs[d.verdict] || [248, 248, 246];
+  const vColor = verdictColors[d.verdict] || [17, 17, 16];
+  doc.setFillColor(...vc);
+  doc.roundedRect(margin, y, contentW, 90, 6, 6, 'F');
+  doc.setFillColor(...vColor);
+  doc.rect(margin, y, 5, 90, 'F');
+  doc.setTextColor(...vColor);
+  doc.setFontSize(28); doc.setFont('helvetica', 'bold');
+  doc.text(d.verdict, margin + 16, y + 32);
+  doc.setFontSize(11); doc.setFont('helvetica', 'italic');
+  doc.setTextColor(90, 90, 88);
+  const claimLines = doc.splitTextToSize(`"${d.claim_text}"`, contentW - 20);
+  doc.text(claimLines, margin + 16, y + 50);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text(`Confidence: ${d.confPct}%   Type: ${d.claim_type || 'General'}   Processing: ${d.processing_ms || '—'}ms`, margin + 16, y + 78);
+  y += 104;
+
+  // Tags
+  if ((d.verdict_tags || []).length) {
+    checkPage(28);
+    doc.setFontSize(9); doc.setTextColor(90, 90, 88);
+    let tx = margin;
+    (d.verdict_tags || []).forEach(tag => {
+      const tw = doc.getTextWidth(tag) + 16;
+      if (tx + tw > W - margin) { tx = margin; y += 18; checkPage(18); }
+      doc.setFillColor(245, 245, 243); doc.setDrawColor(217, 217, 215);
+      doc.roundedRect(tx, y - 10, tw, 16, 4, 4, 'FD');
+      doc.setTextColor(90, 90, 88);
+      doc.text(tag, tx + 8, y + 1);
+      tx += tw + 6;
+    });
+    y += 20;
+  }
+
+  // Evidence support
+  sectionHead('Evidence Support');
+  const barW = contentW - 130;
+  [['Supporting', d.supportPct, [22, 163, 74]], ['Contradicting', d.contradictPct, [220, 38, 38]]].forEach(([label, pct, color]) => {
+    checkPage(22);
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(90, 90, 88);
+    doc.text(label, margin, y);
+    doc.setFillColor(235, 235, 234);
+    doc.roundedRect(margin + 100, y - 9, barW, 9, 2, 2, 'F');
+    if (pct > 0) {
+      doc.setFillColor(...color);
+      doc.roundedRect(margin + 100, y - 9, barW * pct / 100, 9, 2, 2, 'F');
+    }
+    doc.setTextColor(...color); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
+    doc.text(`${pct}%`, W - margin, y, { align: 'right' });
+    y += 22;
+  });
+
+  // Explanation
+  sectionHead('Explanation');
+  doc.setFontSize(10.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(42, 42, 40);
+  const expLines = doc.splitTextToSize(d.explanation || 'No explanation available.', contentW);
+  expLines.forEach(line => { checkPage(16); doc.text(line, margin, y); y += 16; });
+
+  // Sources table
+  if ((d.sources || []).length) {
+    sectionHead(`Sources (${d.sources.length})`);
+    const cols = [130, 140, 54, 74, 90, 60];
+    const heads = ['Name', 'Domain', 'Tier', 'Cred.', 'Stance', 'Date'];
+    const rowH = 20;
+    checkPage(rowH + 6);
+    doc.setFillColor(245, 245, 243); doc.rect(margin, y - 12, contentW, rowH, 'F');
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold'); doc.setTextColor(158, 158, 156);
+    let hx = margin + 6;
+    heads.forEach((h, i) => { doc.text(h.toUpperCase(), hx, y); hx += cols[i]; });
+    y += 8;
+    doc.setDrawColor(235, 235, 234); doc.line(margin, y, W - margin, y); y += 6;
+    (d.sources || []).forEach(s => {
+      checkPage(rowH);
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(17, 17, 16);
+      const vals = [s.name, s.domain, `T${s.tier}`, `${Math.round(s.credibility * 100)}%`, s.stance, s.date];
+      let cx = margin + 6;
+      vals.forEach((v, i) => {
+        if (i === 4) {
+          const sc = v === 'SUPPORTING' ? [21, 128, 61] : v === 'CONTRADICTING' ? [220, 38, 38] : [107, 114, 128];
+          doc.setTextColor(...sc);
+        } else { doc.setTextColor(17, 17, 16); }
+        doc.text(String(v), cx, y);
+        cx += cols[i];
+      });
+      y += rowH;
+      doc.setDrawColor(235, 235, 234); doc.setLineWidth(0.3);
+      doc.line(margin, y - 6, W - margin, y - 6);
+    });
+  }
+
+  // Sub-claims
+  if ((d.sub_claims || []).length) {
+    sectionHead('Sub-Claim Breakdown');
+    (d.sub_claims || []).forEach(sc => {
+      checkPage(28);
+      const scColor = sc.verdict === 'TRUE' ? [21, 128, 61] : sc.verdict === 'FALSE' ? [220, 38, 38] : [146, 64, 14];
+      doc.setFontSize(9.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(42, 42, 40);
+      const lines = doc.splitTextToSize(sc.text, contentW - 90);
+      lines.forEach(l => { doc.text(l, margin, y); y += 14; });
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...scColor); doc.setFontSize(9);
+      doc.text(sc.verdict, W - margin, y - 14 * lines.length, { align: 'right' });
+      doc.setDrawColor(235, 235, 234); doc.setLineWidth(0.3);
+      doc.line(margin, y, W - margin, y); y += 10;
+    });
+  }
+
+  // Footer
+  doc.setTextColor(158, 158, 156); doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+  doc.text(`OSINTVerify v5.2.0 · ${d.generatedAt}`, W / 2, H - 24, { align: 'center' });
+
+  doc.save('osint-report.pdf');
+  showReportToast('PDF report downloaded.');
+}
+
+/* ── DISPATCH ── */
+async function exportReport(format) {
+  const d = getReportData();
+  if (!d) { showReportToast('No result to export yet.'); return; }
+  const btnMap = { html: 'btnHtml', docx: 'btnWord', pdf: 'btnPdf' };
+  const btn = document.getElementById(btnMap[format]);
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+  try {
+    if (format === 'html') exportHTML(d);
+    else if (format === 'docx') await exportDOCX(d);
+    else if (format === 'pdf') exportPDF(d);
+  } finally {
+    setTimeout(() => { if (btn) { btn.disabled = false; btn.style.opacity = ''; } }, 1200);
+  }
+}
+
+function downloadFile(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
 </script>
 </body>
 </html>

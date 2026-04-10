@@ -1117,3 +1117,24 @@ nav {
   .sidebar { display: none; }
   .main-content { padding: 1rem; }
 }
+
+/* ══════════════════════════════════════════════
+   NAV — overflow for many items
+   ══════════════════════════════════════════════ */
+nav {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.nav-btn {
+  white-space: nowrap;
+}
+
+/* ══════════════════════════════════════════════
+   VIEW TRANSITIONS
+   ══════════════════════════════════════════════ */
+#verifyView,
+#dashboardView {
+  animation: fadeIn 0.25s ease;
+}

@@ -1,35 +1,89 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
-export function History({ refreshTrigger }) {
-  const [historyData, setHistoryData] = useState([]);
+const LOCAL_KEY = 'osint_history';
+const MAX_ITEMS = 50;
 
-  const fetchHistory = async () => {
+// ── Local storage helpers ─────────────────────────────────
+function loadLocal() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveLocal(items) {
+  try {
+    localStorage.setItem(LOCAL_KEY, JSON.stringify(items.slice(0, MAX_ITEMS)));
+  } catch {
+    // storage full — ignore
+  }
+}
+
+export function History({ refreshTrigger, lastResult }) {
+  const [historyData, setHistoryData] = useState(() => loadLocal());
+
+  // Try to sync from backend; fall back silently to local data
+  const syncFromBackend = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8000/history');
-      if (response.ok) {
-        const data = await response.json();
-        setHistoryData(data.history || []);
+      const res = await fetch('http://localhost:8000/history', { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        const data = await res.json();
+        const remote = data.history || [];
+        if (remote.length > 0) {
+          setHistoryData(remote);
+          saveLocal(remote);
+        }
       }
-    } catch (error) {
-      console.error('Fetch error:', error);
+    } catch {
+      // Backend offline — stay on local data, no error shown
     }
-  };
+  }, []);
+
+  // On mount: load local immediately, then try backend
+  useEffect(() => {
+    const local = loadLocal();
+    if (local.length > 0) setHistoryData(local);
+    syncFromBackend();
+  }, []);
+
+  // When a new verification finishes, add it locally right away
+  useEffect(() => {
+    if (!lastResult) return;
+
+    const newEntry = {
+      claim:     lastResult.claim_text || lastResult.claim || '(unknown)',
+      verdict:   lastResult.verdict    || 'UNVERIFIED',
+      timestamp: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setHistoryData(prev => {
+      const updated = [newEntry, ...prev].slice(0, MAX_ITEMS);
+      saveLocal(updated);
+      return updated;
+    });
+
+    // Also attempt a background sync from backend after a short delay
+    setTimeout(syncFromBackend, 800);
+  }, [refreshTrigger, lastResult, syncFromBackend]);
 
   const handleClear = async () => {
     if (!window.confirm('Clear all history logs?')) return;
+
+    // Clear locally first so UI responds instantly
+    setHistoryData([]);
+    saveLocal([]);
+
+    // Also clear on backend if reachable
     try {
-      const response = await fetch('http://localhost:8000/history/clear', { method: 'DELETE' });
-      const data = await response.json();
-      if (response.ok && data.status === 'success') setHistoryData([]);
-      else alert('Server failed to clear history.');
+      await fetch('http://localhost:8000/history/clear', {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(3000),
+      });
     } catch {
-      alert('Could not connect to backend.');
+      // Backend offline — local clear is enough
     }
   };
-
-  useEffect(() => {
-    fetchHistory();
-  }, [refreshTrigger]);
 
   return (
     <div className="sidebar-section">
