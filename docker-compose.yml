@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # docker-compose.yml
-# OSINT Verify Platform — PostgreSQL (pgvector) + Redis
+# OSINT Verification Platform — PostgreSQL (pgvector) + Redis
 #
 # Usage:
 #   docker compose up -d           ← start both services
@@ -12,7 +12,7 @@
 
 services:
   postgres:
-    image: pgvector/pgvector:pg16        # Official pgvector image on Postgres 16
+    image: pgvector/pgvector:pg16
     container_name: osint_postgres
     restart: unless-stopped
     environment:
