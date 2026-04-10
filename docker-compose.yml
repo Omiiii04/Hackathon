@@ -1,0 +1,53 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml
+# OSINT Verify Platform — PostgreSQL (pgvector) + Redis
+#
+# Usage:
+#   docker compose up -d           ← start both services
+#   docker compose down            ← stop
+#   docker compose down -v         ← stop + wipe data volumes
+#
+# Postgres credentials are read from .env (POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16        # Official pgvector image on Postgres 16
+    container_name: osint_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-osint_verify}
+      POSTGRES_USER:     ${POSTGRES_USER:-omii}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-omii00}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-omii} -d ${POSTGRES_DB:-osint_verify}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: osint_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local

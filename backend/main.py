@@ -1,29 +1,36 @@
-# backend/main.py
 """
-OSINT Verify — FastAPI entry point.
-Connects the pipeline backend to the index.html frontend.
+backend/main.py  —  OSINT Verify — FastAPI entry point (v5.2)
+==============================================================
 
-Key responsibilities:
-  • Warm up BART-MNLI on startup (zero first-request latency).
-  • POST /verify  → run full pipeline, translate result into the UI schema.
-  • GET  /history → last 30 verifications.
-  • DELETE /history/clear
-  • GET  /health
+Routes:
+  POST  /v1/verify            → enqueue Celery task, return {job_id}
+  GET   /v1/status/{job_id}   → poll job result
+  WS    /ws/{job_id}          → real-time stage streaming
+  GET   /v1/metrics           → system-wide stats
+  GET   /v1/history           → last 30 verifications from DB
+
+Compatibility shim (React frontend / no Celery):
+  POST  /verify               → synchronous pipeline, returns result directly
+  GET   /history              → last 30 from DB (or in-memory fallback)
+  DELETE /history/clear
+  GET   /health
 """
 
+import asyncio
 import datetime
 import re
+import time
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
-from pipeline import run_pipeline
+from config import settings
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -32,26 +39,69 @@ from pipeline import run_pipeline
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Pre-load BART-MNLI and warm it up before the first real request."""
-    print("\n" + "=" * 60)
-    print("[Startup] Pre-loading BART-MNLI stance classifier…")
-    print("=" * 60)
+    """
+    Startup: pre-load BART-MNLI, SentenceTransformer, DB pool, Redis pool.
+    Shutdown: gracefully close connections.
+    All startup failures are non-fatal — the server continues without that service.
+    """
+    print("\n" + "=" * 65)
+    print("  OSINT Verify v5.2  -  Starting up")
+    print("=" * 65)
 
-    from verdict_engine import stance_classifier  # triggers module-level load
-
+    # 1. Database (Docker Postgres)
     try:
-        _ = stance_classifier(
-            "This is a warmup sentence.",
-            ["supports the claim", "contradicts the claim", "neutral or unrelated"],
-            hypothesis_template="This text {} that the sky is blue.",
-        )
-        print("[Startup] ✅ BART-MNLI ready — warmup inference complete.")
-    except Exception as exc:
-        print(f"[Startup] ⚠ Warmup failed (model still loaded): {exc}")
+        from db.database import get_pool, create_all_tables, seed_credibility_data
+        await get_pool()
+        await create_all_tables()
+        await seed_credibility_data()
+        print("[Startup] [OK] PostgreSQL pool ready + tables verified")
+    except Exception as e:
+        print(f"[Startup] [WARN] PostgreSQL unavailable: {e}")
+        print("[Startup]        Run: docker compose up -d   (from project root)")
 
-    print("=" * 60 + "\n")
+    # 2. Redis
+    try:
+        from cache.redis_client import redis_ping
+        ok = await redis_ping()
+        if ok:
+            print("[Startup] [OK] Redis ready")
+        else:
+            print("[Startup] [WARN] Redis unavailable - caching disabled")
+    except Exception as e:
+        print(f"[Startup] [WARN] Redis error: {e}")
+
+    # 3. BART-MNLI (warm up in background thread — slow, don't crash if missing)
+    try:
+        from pipeline.stance import warmup
+        import asyncio
+        await asyncio.to_thread(warmup)
+        print("[Startup] [OK] BART-MNLI warm-up complete")
+    except Exception as e:
+        print(f"[Startup] [WARN] BART-MNLI warm-up skipped: {e}")
+
+    # 4. SentenceTransformer
+    try:
+        from pipeline.embedder import embed
+        await asyncio.to_thread(embed, "warmup")
+        print("[Startup] [OK] SentenceTransformer (MiniLM) ready")
+    except Exception as e:
+        print(f"[Startup] [WARN] SentenceTransformer skipped: {e}")
+
+    print("=" * 65 + "\n")
     yield
-    print("[Shutdown] OSINT Engine shutting down.")
+
+    # Shutdown
+    try:
+        from db.database import close_pool
+        await close_pool()
+    except Exception:
+        pass
+    try:
+        from cache.redis_client import close_redis
+        await close_redis()
+    except Exception:
+        pass
+    print("[Shutdown] OSINT Engine shut down cleanly.")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -59,105 +109,63 @@ async def lifespan(app: FastAPI):
 # ─────────────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
-    title="OSINT Engine API",
-    description="Verify any claim using 10+ global OSINT sources",
-    version="2.0.0",
+    title="OSINT Verify — API",
+    description="Multimodal claim verification platform (OSINT + AI)",
+    version="5.2.0",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # tighten in production
+    allow_origins=["*"],       # tighten in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Serve the frontend HTML directly at "/"
-# Place index.html next to main.py (or adjust the path below).
+# Serve the React frontend build at /  (optional — frontend runs dev server)
 try:
-    app.mount("/static", StaticFiles(directory="."), name="static")
+    from fastapi.staticfiles import StaticFiles
+    import os
+    dist_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "build")
+    if os.path.isdir(dist_path):
+        app.mount("/static", StaticFiles(directory=dist_path), name="static")
 except Exception:
-    pass  # skip if directory not found; API still works fine
-
-
-@app.get("/", include_in_schema=False)
-def serve_index():
-    return FileResponse("index.html")
+    pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# IN-MEMORY STORE
-# ─────────────────────────────────────────────────────────────────────────────
-
-_history: list = []   # list[dict] — last 30 verifications
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# REQUEST / RESPONSE MODELS
+# PYDANTIC MODELS
 # ─────────────────────────────────────────────────────────────────────────────
 
 class VerifyRequest(BaseModel):
-    claim:         str            = ""
-    image_url:     Optional[str]  = None
-    image_base64:  Optional[str]  = None
-    claim_type:    Optional[str]  = "general"   # hint from UI type-selector
+    claim: str = ""
+    input_type: str = "text"          # text | url | image
+    claim_type: str = "general"       # hint from UI type-selector
+    image_url: Optional[str] = None
+    image_base64: Optional[str] = None
 
 
-# The response schema mirrors what index.html's renderReport() expects.
-class VerifyResponse(BaseModel):
-    # Core verdict
-    verdict:           str
-    localized_verdict: Optional[str]       = None
-    confidence:        float
-    explanation:       str
-    llm_provider:      str                 = "local_llm"
-    claim_type:        str                 = "general"
-
-    # Timing / cache
-    processing_ms:     int
-    cached:            bool
-
-    # Evidence summary
-    support_ratio:     float
-    evidence_count:    int
-    support_bar:       Dict[str, int]      # {support_pct, contradict_pct}
-
-    # Verdict decoration
-    verdict_tags:      List[str]           = []
-    is_compound:       bool                = False
-    is_mutation:       bool                = False
-    adversarial:       bool                = False
-
-    # Detailed outputs
-    sources:           List[Dict[str, Any]] = []
-    sub_claims:        List[Dict[str, Any]] = []
-    trace:             Dict[str, Any]       = {}
-    evidence_graph:    Dict[str, Any]       = {}
-    mutation_chain:    List[Dict[str, Any]] = []
-    algorithm_trace:   Dict[str, Any]       = {}   # raw trace for debugging
+class AsyncVerifyResponse(BaseModel):
+    job_id: str
+    status: str = "queued"
+    websocket_url: str
+    poll_url: str
 
 
-class HistoryItem(BaseModel):
-    timestamp: str
-    claim:     str
-    verdict:   str
-
-
-class HistoryResponse(BaseModel):
-    history: List[HistoryItem]
-
-
-class StatusResponse(BaseModel):
+class JobStatusResponse(BaseModel):
+    job_id: str
     status: str
+    stage: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# HELPER: extract domain from URL
+# HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _domain(url: str) -> str:
-    """Return bare domain, e.g. 'reuters.com'."""
     try:
         host = urlparse(url).netloc or url
         return host.replace("www.", "").lower()
@@ -165,31 +173,144 @@ def _domain(url: str) -> str:
         return url.lower()
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HELPER: map credibility label/float → tier integer for the UI
-# ─────────────────────────────────────────────────────────────────────────────
+_LABEL_TO_FLOAT = {"HIGH": 0.90, "MEDIUM": 0.65, "LOW": 0.35}
 
-def _tier(credibility_label: str, credibility_float: float = 0.0) -> int:
-    """
-    Convert a credibility label (HIGH / MEDIUM / LOW) or raw float to a
-    1–4 tier number used by the UI's source cards.
-    """
-    label = credibility_label.upper() if credibility_label else ""
-    if label == "HIGH"   or credibility_float >= 0.85:  return 1
-    if label == "MEDIUM" or credibility_float >= 0.55:  return 2
-    if credibility_float >= 0.35:                        return 3
+_BREAKING_KW = re.compile(r"\b(breaks?|breaking|just in|alert|urgent|developing)\b", re.I)
+_SCIENTIFIC_KW = re.compile(r"\b(study|research|scientist|vaccine|virus|data|trial|experiment)\b", re.I)
+_POLITICAL_KW = re.compile(r"\b(government|president|minister|election|parliament|senate|congress)\b", re.I)
+
+
+def _detect_claim_type(claim: str, hint: str = "general") -> str:
+    if hint and hint not in ("general", "auto"):
+        return hint
+    if _BREAKING_KW.search(claim):
+        return "breaking_news"
+    if _SCIENTIFIC_KW.search(claim):
+        return "scientific"
+    if _POLITICAL_KW.search(claim):
+        return "political"
+    return "general"
+
+
+def _tier(cred_float: float) -> int:
+    if cred_float >= 0.85:
+        return 1
+    if cred_float >= 0.55:
+        return 2
+    if cred_float >= 0.35:
+        return 3
     return 4
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HELPER: derive verdict_tags from the algorithm trace
-# ─────────────────────────────────────────────────────────────────────────────
+def _format_for_ui(raw: dict, claim: str, claim_type_hint: str = "general") -> dict:
+    """
+    Normalise a raw pipeline result dict into the shape the React frontend expects.
+    Merges new pipeline schema with old schema for backward compat.
+    """
+    verdict = raw.get("verdict", "UNVERIFIED")
+    confidence = raw.get("confidence", 0.0)
+    explanation = raw.get("explanation", "")
+    support_ratio = raw.get("support_ratio", 0.5)
+    evidence_count = raw.get("evidence_count", 0)
+    is_compound = raw.get("is_compound", False)
+    cached = raw.get("cached", False)
+    proc_ms = raw.get("processing_ms", raw.get("processing_time_ms", 0))
+    algo_trace = raw.get("algorithm_trace", {})
+    llm_provider = raw.get("llm_provider", algo_trace.get("llm_provider_used", "local_llm"))
 
-def _build_verdict_tags(verdict: str, trace: dict, is_compound: bool) -> List[str]:
+    # ── Sources ───────────────────────────────────────────────────────────────
+    ui_sources = []
+    for s in raw.get("sources", []):
+        cred_raw = s.get("credibility_score", s.get("credibility", 0.65))
+        # Handle string labels from old format
+        if isinstance(cred_raw, str):
+            cred_float = _LABEL_TO_FLOAT.get(cred_raw.upper(), 0.65)
+        else:
+            cred_float = float(cred_raw)
+
+        ui_sources.append({
+            "name": s.get("source", s.get("name", s.get("title", "Unknown")))[:40],
+            "domain": _domain(s.get("url", "")),
+            "tier": _tier(cred_float),
+            "credibility": round(cred_float, 3),
+            "stance": s.get("stance", "NEUTRAL"),
+            "date": "recent",
+            "shift": 0,
+            "url": s.get("url", ""),
+        })
+
+    # ── Support bar ───────────────────────────────────────────────────────────
+    support_pct = round(support_ratio * 100)
+    support_bar = {"support_pct": support_pct, "contradict_pct": 100 - support_pct}
+
+    # ── Claim type ────────────────────────────────────────────────────────────
+    claim_type = raw.get("claim_type") or _detect_claim_type(claim, claim_type_hint)
+
+    # ── Verdict tags ──────────────────────────────────────────────────────────
+    verdict_tags = _build_verdict_tags(verdict, algo_trace, is_compound, evidence_count)
+
+    # ── Evidence graph ────────────────────────────────────────────────────────
+    evidence_graph = _build_evidence_graph(ui_sources)
+
+    # ── UI trace ──────────────────────────────────────────────────────────────
+    ui_trace = {
+        "support_ratio": round(support_ratio, 3),
+        "total_evidence_items": evidence_count,
+        "tier1_sources_found": algo_trace.get("tier1_count", 0),
+        "early_exit_triggered": algo_trace.get("early_exit", False),
+        "early_exit_reason": algo_trace.get("early_exit_reason", ""),
+        "event_date": "unknown",
+        "utterance_date": datetime.date.today().isoformat(),
+        "confidence_raw": round(confidence, 3),
+        "confidence_final": round(confidence, 3),
+        "claim_type": claim_type,
+        "supporting_count": algo_trace.get("supporting_count", 0),
+        "contradicting_count": algo_trace.get("contradicting_count", 0),
+        "neutral_count": algo_trace.get("neutral_count", 0),
+        "avg_credibility": algo_trace.get("avg_credibility", 0),
+        "agreement": algo_trace.get("agreement", 0),
+        "llm_provider_used": llm_provider,
+    }
+
+    return {
+        # Core
+        "verdict": verdict,
+        "localized_verdict": raw.get("localized_verdict"),
+        "confidence": confidence,
+        "explanation": explanation,
+        "llm_provider": llm_provider,
+        "claim_type": claim_type,
+        # Timing
+        "processing_ms": proc_ms,
+        "cached": cached,
+        # Evidence
+        "support_ratio": round(support_ratio, 3),
+        "evidence_count": evidence_count,
+        "support_bar": support_bar,
+        # Decoration
+        "verdict_tags": verdict_tags,
+        "is_compound": is_compound,
+        "is_mutation": raw.get("is_mutation", False),
+        "adversarial": False,
+        "adversarial_signal": "",
+        # Detail
+        "sources": ui_sources,
+        "sub_claims": raw.get("sub_claims", []),
+        "trace": ui_trace,
+        "evidence_graph": evidence_graph,
+        "mutation_chain": raw.get("mutation_chain", []),
+        "algorithm_trace": algo_trace,
+    }
+
+
+def _build_verdict_tags(
+    verdict: str,
+    trace: dict,
+    is_compound: bool,
+    evidence_count: int,
+) -> List[str]:
     tags: List[str] = []
-
     tier1 = trace.get("tier1_count", 0)
-    n     = trace.get("evidence_count", 0)
     agree = trace.get("agreement", 0)
 
     if tier1 >= 3:
@@ -199,12 +320,12 @@ def _build_verdict_tags(verdict: str, trace: dict, is_compound: bool) -> List[st
 
     if agree >= 0.7:
         tags.append("High agreement")
-    elif agree < 0.3:
+    elif agree < 0.3 and evidence_count >= 2:
         tags.append("Split evidence")
 
-    if n >= 10:
+    if evidence_count >= 10:
         tags.append("Strong evidence base")
-    elif n == 0:
+    elif evidence_count == 0:
         tags.append("Insufficient sources")
 
     if is_compound:
@@ -212,275 +333,396 @@ def _build_verdict_tags(verdict: str, trace: dict, is_compound: bool) -> List[st
 
     if verdict == "MISLEADING":
         tags.append("Context missing")
-    if verdict == "CONFLICTING":
+    elif verdict == "CONFLICTING":
         tags.append("Genuine disagreement")
-    if verdict == "UNVERIFIED":
+    elif verdict == "UNVERIFIED":
         tags.append("Check back later")
+    elif verdict == "FALSE":
+        tags.append("Widely contradicted")
+    elif verdict == "TRUE":
+        tags.append("Well supported")
 
-    return tags[:5]   # cap at 5 tags
+    return tags[:5]
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# HELPER: detect claim type from claim text
-# ─────────────────────────────────────────────────────────────────────────────
-
-_BREAKING_KW  = re.compile(r"\b(breaks?|breaking|just in|alert|urgent|develop)\b", re.I)
-_SCIENTIFIC_KW = re.compile(r"\b(study|research|scientist|vaccine|virus|data|trial|experiment|survey)\b", re.I)
-_POLITICAL_KW  = re.compile(r"\b(government|president|minister|election|parliament|senate|congress|policy|law|bill|vote)\b", re.I)
-
-
-def _detect_claim_type(claim: str, hint: str = "general") -> str:
-    if hint and hint != "general":
-        return hint
-    if _BREAKING_KW.search(claim):  return "breaking_news"
-    if _SCIENTIFIC_KW.search(claim): return "scientific"
-    if _POLITICAL_KW.search(claim):  return "political"
-    return "general"
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# HELPER: build evidence graph for the right-panel canvas
-# ─────────────────────────────────────────────────────────────────────────────
 
 def _build_evidence_graph(sources: List[dict]) -> Dict[str, Any]:
-    """
-    Construct a simple graph from the top sources list.
-    Nodes  → each source domain.
-    Edges  → pairs of same-stance sources (claim_overlap approximated from credibility).
-    """
-    nodes = []
-    for s in sources:
-        nodes.append({
-            "id":     s.get("domain", s.get("source", "unknown")),
-            "tier":   s.get("tier", 3),
+    nodes = [
+        {
+            "id": s.get("domain", "unknown"),
+            "tier": s.get("tier", 3),
             "stance": s.get("stance", "NEUTRAL"),
-            "score":  round(s.get("credibility", 0.5), 2),
-        })
-
+            "score": round(s.get("credibility", 0.5), 2),
+        }
+        for s in sources
+    ]
     edges = []
     for i, a in enumerate(nodes):
         for b in nodes[i + 1:]:
             if a["stance"] == b["stance"]:
                 overlap = round((a["score"] + b["score"]) / 2 * 0.85, 2)
-                edges.append({"source": a["id"], "target": b["id"], "claim_overlap": overlap})
-
+                edges.append({
+                    "source": a["id"],
+                    "target": b["id"],
+                    "claim_overlap": overlap,
+                })
     return {"nodes": nodes, "edges": edges}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# MAIN TRANSFORMER: VerdictResult dict → UI response dict
-# ─────────────────────────────────────────────────────────────────────────────
-
-def _format_for_ui(
-    raw: dict,
-    claim: str,
-    claim_type_hint: str = "general",
-) -> dict:
+async def _extract_claim_from_request(body: VerifyRequest) -> str:
     """
-    Converts the raw VerdictResult.to_dict() payload into the shape that
-    index.html's renderReport() function expects.
-    """
-    verdict      = raw.get("verdict", "UNVERIFIED")
-    confidence   = raw.get("confidence", 0.0)
-    explanation  = raw.get("explanation", "")
-    support_ratio = raw.get("support_ratio", 0.5)
-    evidence_count = raw.get("evidence_count", 0)
-    is_compound  = raw.get("is_compound", False)
-    cached       = raw.get("cached", False)
-    proc_ms      = raw.get("processing_time_ms", 0)
-    algo_trace   = raw.get("algorithm_trace", {})
-
-    # ── Sources ──────────────────────────────────────────────────────────────
-    # Backend sources: {title, url, source, credibility (label str), stance}
-    # UI sources:      {name, domain, tier, credibility (float 0-1), stance, date, shift}
-
-    # Credibility label → float lookup (reverse of get_credibility_label)
-    _label_to_float = {"HIGH": 0.90, "MEDIUM": 0.65, "LOW": 0.35}
-
-    ui_sources = []
-    for s in raw.get("sources", []):
-        cred_label = s.get("credibility", "MEDIUM")
-        cred_float = _label_to_float.get(str(cred_label).upper(), 0.65)
-
-        ui_sources.append({
-            "name":        s.get("source", s.get("title", "Unknown"))[:40],
-            "domain":      _domain(s.get("url", "")),
-            "tier":        _tier(str(cred_label), cred_float),
-            "credibility": cred_float,
-            "stance":      s.get("stance", "NEUTRAL"),
-            "date":        "recent",   # scraper doesn't return publish date yet
-            "shift":       0,          # delta credibility shift (reserved)
-        })
-
-    # ── Support bar ───────────────────────────────────────────────────────────
-    support_pct   = round(support_ratio * 100)
-    contradict_pct = 100 - support_pct
-    support_bar = {"support_pct": support_pct, "contradict_pct": contradict_pct}
-
-    # ── Claim type ────────────────────────────────────────────────────────────
-    claim_type = _detect_claim_type(claim, claim_type_hint)
-
-    # ── Verdict tags ──────────────────────────────────────────────────────────
-    # Enrich algo_trace with extra keys for tag builder
-    enriched_trace = {**algo_trace, "evidence_count": evidence_count}
-    verdict_tags = _build_verdict_tags(verdict, enriched_trace, is_compound)
-
-    # ── UI trace object ────────────────────────────────────────────────────────
-    ui_trace = {
-        "support_ratio":        round(support_ratio, 3),
-        "total_evidence_items": evidence_count,
-        "tier1_sources_found":  algo_trace.get("tier1_count", 0),
-        "temporal_mismatch":    False,   # reserved — requires publish-date logic
-        "echo_chamber_penalty": False,   # reserved — requires source diversity check
-        "early_exit_triggered": False,
-        "event_date":           "unknown",
-        "utterance_date":       datetime.date.today().isoformat(),
-        "confidence_raw":       round(confidence, 3),
-        "confidence_final":     round(confidence, 3),
-        "claim_type":           claim_type,
-        "threshold_TRUE":       round(algo_trace.get("true_threshold", 0.70), 2),
-        "threshold_FALSE":      round(algo_trace.get("true_threshold", 0.70) * 0.4, 2),
-        # Extra algorithm detail (bonus for advanced profiles)
-        "supporting_count":     algo_trace.get("supporting_count", 0),
-        "contradicting_count":  algo_trace.get("contradicting_count", 0),
-        "neutral_count":        algo_trace.get("neutral_count", 0),
-        "avg_credibility":      algo_trace.get("avg_credibility", 0),
-        "agreement":            algo_trace.get("agreement", 0),
-    }
-
-    # ── Sub-claims: add confidence if missing (UI renders verdict + text) ──────
-    sub_claims = raw.get("sub_claims", [])
-
-    # ── Evidence graph ────────────────────────────────────────────────────────
-    evidence_graph = _build_evidence_graph(ui_sources)
-
-    return {
-        # Core
-        "verdict":           verdict,
-        "localized_verdict": raw.get("localized_verdict"),
-        "confidence":        confidence,
-        "explanation":       explanation,
-        "llm_provider":      "local_llm",
-        "claim_type":        claim_type,
-
-        # Timing / cache
-        "processing_ms":     proc_ms,
-        "cached":            cached,
-
-        # Evidence summary
-        "support_ratio":     round(support_ratio, 3),
-        "evidence_count":    evidence_count,
-        "support_bar":       support_bar,
-
-        # Decoration
-        "verdict_tags":      verdict_tags,
-        "is_compound":       is_compound,
-        "is_mutation":       False,   # reserved — requires claim DB
-        "adversarial":       False,   # reserved — requires adversarial detector
-        "adversarial_signal": "",
-
-        # Detailed outputs
-        "sources":           ui_sources,
-        "sub_claims":        sub_claims,
-        "trace":             ui_trace,
-        "evidence_graph":    evidence_graph,
-        "mutation_chain":    [],      # reserved
-
-        # Raw algorithm trace (kept for backend debugging)
-        "algorithm_trace":   algo_trace,
-    }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ENDPOINTS
-# ─────────────────────────────────────────────────────────────────────────────
-
-@app.get("/health")
-def health():
-    """Health check — confirms the model loaded correctly."""
-    from verdict_engine import stance_classifier
-    return {
-        "status":      "ok",
-        "message":     "OSINT Engine is running",
-        "model_ready": stance_classifier is not None,
-    }
-
-
-@app.post("/verify")
-async def verify(body: VerifyRequest):
-    """
-    Main verification endpoint — full pipeline.
-    Accepts text claims and optionally an image (URL or base64).
-    Returns a response shaped for index.html's renderReport().
+    Handle text, URL, or image claim extraction.
     """
     claim = body.claim.strip()
 
-    # ── Image extraction ─────────────────────────────────────────────────────
+    # URL input: extract text from URL
+    if body.input_type == "url" and not claim:
+        raise HTTPException(status_code=400, detail="URL input_type requires a claim URL.")
+
+    # Image input
     if body.image_url or body.image_base64:
         from image_engine import extract_claim_from_image
         import base64
-        import httpx
+        import httpx as _httpx
 
         image_bytes = None
         if body.image_base64:
-            b64_str = body.image_base64
-            if "," in b64_str:               # strip data-URL prefix
-                b64_str = b64_str.split(",")[1]
-            image_bytes = base64.b64decode(b64_str)
+            b64 = body.image_base64
+            if "," in b64:
+                b64 = b64.split(",")[1]
+            image_bytes = base64.b64decode(b64)
         elif body.image_url:
-            async with httpx.AsyncClient() as client:
+            async with _httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(body.image_url)
                 if resp.status_code == 200:
                     image_bytes = resp.content
 
         if image_bytes:
-            print("[API] Extracting claim from image…")
-            claim = extract_claim_from_image(image_bytes)
-            print(f"[API] Extracted claim: {claim}")
+            claim = await asyncio.to_thread(extract_claim_from_image, image_bytes)
 
+    return claim
+
+
+async def _sync_pipeline(claim: str, claim_type: str) -> dict:
+    """
+    Run the full verification pipeline synchronously (for /verify compat shim).
+    No Celery, no WebSocket — just run and return.
+    """
+    import time as _time
+    from pipeline.claim_parser import parse_claim
+    from pipeline.embedder import embed, rank_evidence, embedding_to_list
+    from pipeline.stance import classify_stance_bulk
+    from pipeline.aggregator import aggregate
+    from pipeline.verdict import compute_verdict
+    from sources.collector import collect_all_evidence
+    from services.llm_service import generate_explanation
+    from cache.redis_client import get_cached_result, cache_result
+
+    start_ms = int(_time.time() * 1000)
+
+    # Cache check
+    cached = await get_cached_result(claim)
+    if cached:
+        cached["cached"] = True
+        cached["processing_ms"] = int(_time.time() * 1000) - start_ms
+        return cached
+
+    parsed = parse_claim(claim, claim_type)
+    claim_emb = embed(claim)
+
+    evidence = await collect_all_evidence(claim)
+    if not evidence:
+        result = {
+            "verdict": "UNVERIFIED",
+            "confidence": 0.0,
+            "explanation": (
+                "No sources could be found to verify this claim. "
+                "This does not mean it is false."
+            ),
+            "llm_provider": "template",
+            "support_ratio": 0.5,
+            "evidence_count": 0,
+            "sources": [],
+            "sub_claims": [],
+            "is_compound": parsed.is_compound,
+            "is_mutation": False,
+            "mutation_chain": [],
+            "algorithm_trace": {"reason": "no_evidence_found"},
+            "processing_ms": int(_time.time() * 1000) - start_ms,
+            "cached": False,
+            "claim_type": parsed.claim_type,
+        }
+        return result
+
+    evidence = rank_evidence(claim_emb, evidence)
+    evidence = evidence[:settings.evidence_max_articles * 3]
+    evidence = classify_stance_bulk(evidence, claim)
+    agg = aggregate(evidence)
+    verdict, confidence, top_sources, trace = compute_verdict(agg, evidence)
+    explanation, llm_provider = await generate_explanation(
+        claim=claim,
+        verdict=verdict,
+        top_sources=top_sources,
+        algorithm_trace=trace,
+    )
+    trace["llm_provider_used"] = llm_provider
+
+    # Async DB operations (best-effort, don't fail the response)
+    claim_id = None
+    try:
+        from db.database import get_pool
+        from db.repository import upsert_claim, save_report
+        pool = await get_pool()
+        emb_list = embedding_to_list(claim_emb)
+        claim_id = await upsert_claim(pool, claim, emb_list, parsed.claim_type, parsed.entities, parsed.intent)
+        await save_report(pool, claim_id, {
+            "verdict": verdict,
+            "confidence": confidence,
+            "explanation": explanation,
+            "llm_provider": llm_provider,
+            "support_ratio": agg.support_ratio,
+            "evidence_count": agg.evidence_count,
+            "sources": top_sources,
+            "algorithm_trace": trace,
+            "processing_ms": int(_time.time() * 1000) - start_ms,
+            "cached": False,
+        })
+    except Exception as e:
+        pass
+
+    result = {
+        "verdict": verdict,
+        "confidence": confidence,
+        "explanation": explanation,
+        "llm_provider": llm_provider,
+        "support_ratio": float(agg.support_ratio),
+        "evidence_count": agg.evidence_count,
+        "sources": top_sources,
+        "sub_claims": [],
+        "is_compound": parsed.is_compound,
+        "is_mutation": False,
+        "mutation_chain": [],
+        "algorithm_trace": trace,
+        "processing_ms": int(_time.time() * 1000) - start_ms,
+        "cached": False,
+        "claim_type": parsed.claim_type,
+    }
+
+    await cache_result(claim, result)
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SPEC-COMPLIANT API ROUTES  (/v1/*)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/v1/verify", response_model=AsyncVerifyResponse)
+async def v1_verify(body: VerifyRequest):
+    """
+    Async verification: enqueue Celery task, return job_id + WebSocket URL.
+    Client should:
+      1. Connect to ws://host/ws/{job_id} for real-time stages
+      2. OR poll GET /v1/status/{job_id} every 2s
+    """
+    claim = await _extract_claim_from_request(body)
     if not claim:
-        raise HTTPException(
-            status_code=400,
-            detail="No valid claim could be found or extracted.",
-        )
+        raise HTTPException(status_code=400, detail="No claim text could be extracted.")
 
-    # ── Language detection / translation ─────────────────────────────────────
-    from translator import detect_lang, translate_to_en, translate_verdict
+    # Language translation
+    try:
+        from translator import detect_lang, translate_to_en
+        src_lang = detect_lang(claim)
+        if src_lang != "en":
+            claim = translate_to_en(claim, src_lang)
+    except Exception:
+        pass
 
-    source_lang = detect_lang(claim)
+    job_id = str(uuid.uuid4())
+
+    # Store initial status
+    from cache.redis_client import set_job_status
+    await set_job_status(job_id, "queued", ttl=3600)
+
+    # Enqueue Celery task
+    from tasks import verify_claim_task
+    verify_claim_task.apply_async(
+        args=[job_id, claim, body.claim_type or "general"],
+        task_id=job_id,
+    )
+
+    return AsyncVerifyResponse(
+        job_id=job_id,
+        status="queued",
+        websocket_url=f"ws://localhost:8000/ws/{job_id}",
+        poll_url=f"/v1/status/{job_id}",
+    )
+
+
+@app.get("/v1/status/{job_id}", response_model=JobStatusResponse)
+async def v1_status(job_id: str):
+    """Poll for job result. Returns stage + result when complete."""
+    from cache.redis_client import get_job_status
+    job = await get_job_status(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired.")
+    return JobStatusResponse(
+        job_id=job_id,
+        status=job.get("status", "unknown"),
+        stage=job.get("status"),
+        result=job.get("data") if job.get("status") == "complete" else None,
+        error=job.get("data", {}).get("error") if job.get("status") == "failed" else None,
+    )
+
+
+@app.websocket("/ws/{job_id}")
+async def websocket_endpoint(websocket: WebSocket, job_id: str):
+    """Real-time WebSocket stage streaming for a verification job."""
+    from ws.manager import listen_for_job
+    await listen_for_job(job_id, websocket)
+
+
+@app.get("/v1/history")
+async def v1_history(limit: int = 30):
+    """Return recent verification history from PostgreSQL."""
+    try:
+        from db.database import get_pool
+        from db.repository import get_recent_reports
+        pool = await get_pool()
+        rows = await get_recent_reports(pool, limit)
+        return {"history": rows}
+    except Exception:
+        return {"history": []}
+
+
+@app.get("/v1/metrics")
+async def v1_metrics():
+    """System-wide metrics for the dashboard."""
+    from services.circuit_breaker import all_breaker_statuses
+    from cache.redis_client import redis_ping
+
+    metrics = {
+        "version": "5.2.0",
+        "redis_connected": False,
+        "db_connected": False,
+        "offline_mode": settings.offline_mode,
+        "circuit_breakers": all_breaker_statuses(),
+        "verdict_distribution": {},
+        "total_reports": 0,
+    }
+
+    try:
+        metrics["redis_connected"] = await redis_ping()
+    except Exception:
+        pass
+
+    try:
+        from db.database import get_pool, db_ping
+        from db.repository import get_verdict_distribution
+        metrics["db_connected"] = await db_ping()
+        if metrics["db_connected"]:
+            pool = await get_pool()
+            dist = await get_verdict_distribution(pool)
+            metrics["verdict_distribution"] = dist
+            metrics["total_reports"] = sum(dist.values())
+    except Exception:
+        pass
+
+    return metrics
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPATIBILITY SHIM  (React frontend uses these routes directly)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/verify")
+async def verify_compat(body: VerifyRequest):
+    """
+    Synchronous /verify shim for the React frontend.
+    Runs the full pipeline inline (no Celery) and returns the formatted report.
+    """
+    claim = await _extract_claim_from_request(body)
+    if not claim:
+        raise HTTPException(status_code=400, detail="No claim text could be extracted.")
+
+    # Translation
+    source_lang = "en"
+    try:
+        from translator import detect_lang, translate_to_en, translate_verdict
+        source_lang = detect_lang(claim)
+        if source_lang != "en":
+            claim = translate_to_en(claim, source_lang)
+    except Exception:
+        pass
+
+    raw = await _sync_pipeline(claim, body.claim_type or "general")
+
+    # Localise verdict if translated
     if source_lang != "en":
-        print(f"[API] Detected '{source_lang}', translating to EN…")
-        claim = translate_to_en(claim, source_lang)
+        try:
+            from translator import translate_verdict
+            raw["localized_verdict"] = translate_verdict(raw["verdict"], source_lang)
+        except Exception:
+            pass
 
-    # ── Run the pipeline ──────────────────────────────────────────────────────
-    result = await run_pipeline(claim)
-    raw    = result.to_dict()
-
-    # ── Localize verdict if needed ────────────────────────────────────────────
-    if source_lang != "en":
-        raw["localized_verdict"] = translate_verdict(raw["verdict"], source_lang)
-
-    # ── History ───────────────────────────────────────────────────────────────
-    _history.append({
-        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "claim":     claim[:100] + ("…" if len(claim) > 100 else ""),
-        "verdict":   raw["verdict"],
-    })
-    if len(_history) > 30:
-        _history.pop(0)
-
-    # ── Transform to UI schema ────────────────────────────────────────────────
     return _format_for_ui(raw, claim, body.claim_type or "general")
 
 
-@app.get("/history", response_model=HistoryResponse)
-def get_history():
-    """Return the last 30 verifications in reverse chronological order."""
-    return {"history": list(reversed(_history))}
+@app.get("/health")
+async def health():
+    """Health check — used by frontend and load balancers."""
+    from cache.redis_client import redis_ping
+    from db.database import db_ping
+
+    redis_ok = False
+    db_ok = False
+
+    try:
+        redis_ok = await redis_ping()
+    except Exception:
+        pass
+    try:
+        db_ok = await db_ping()
+    except Exception:
+        pass
+
+    # Check BART is loaded
+    try:
+        from pipeline.stance import _classifier
+        bart_ok = _classifier is not None
+    except Exception:
+        bart_ok = False
+
+    return {
+        "status": "ok",
+        "version": "5.2.0",
+        "message": "OSINT Engine is running",
+        "models_loaded": bart_ok,
+        "redis": redis_ok,
+        "db": db_ok,
+        "offline_mode": settings.offline_mode,
+    }
 
 
-@app.delete("/history/clear", response_model=StatusResponse)
-def clear_history():
-    """Wipe the in-memory history."""
-    _history.clear()
-    return {"status": "success"}
+@app.get("/history")
+async def get_history():
+    """Legacy history endpoint — reads from DB with fallback to empty."""
+    try:
+        from db.database import get_pool
+        from db.repository import get_recent_reports
+        pool = await get_pool()
+        rows = await get_recent_reports(pool, 30)
+        history = [
+            {
+                "timestamp": r["created_at"].strftime("%Y-%m-%d %H:%M") if hasattr(r["created_at"], "strftime") else str(r["created_at"]),
+                "claim": (r.get("claim_text") or "")[:100],
+                "verdict": r.get("verdict", "UNKNOWN"),
+            }
+            for r in rows
+        ]
+        return {"history": history}
+    except Exception:
+        return {"history": []}
+
+
+@app.delete("/history/clear")
+async def clear_history():
+    return {"status": "success", "message": "History is stored in DB — clear via psql."}

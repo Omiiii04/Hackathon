@@ -5,7 +5,7 @@ from transformers import pipeline
 from models import EvidenceItem, VerdictResult
 from credibility import get_credibility_score, get_credibility_label
 
-LOCAL_MODEL_PATH = r"C:\Users\Admin\Desktop\VIT_Hackathon\models\bart_mnli"
+LOCAL_MODEL_PATH = r"C:\Users\Admin\Desktop\Hackathon\models\bart_mnli"
 
 if "stance_classifier" not in dir():   # guard: only load once per process
     print(f"[VerdictEngine] Loading BART-MNLI from: {LOCAL_MODEL_PATH} …")
