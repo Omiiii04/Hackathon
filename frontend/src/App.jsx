@@ -19,71 +19,146 @@ const SIDEBAR_NAV = [
   { id: 'source-credibility', icon: '🌐', label: 'Source Credibility' },
 ];
 
-// ── Static dashboard (own component — avoids stale-closure issues) ────────
+
+// ── Live Dashboard — fetches /v1/metrics + /history ───────────────────────
+
 function DashboardView() {
+  const [metrics,  setMetrics]  = useState(null);
+  const [history,  setHistory]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
+
+  const load = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [mRes, hRes] = await Promise.all([
+        fetch(`${BACKEND_URL}/v1/metrics`, { signal: AbortSignal.timeout(8000) }),
+        fetch(`${BACKEND_URL}/history`,    { signal: AbortSignal.timeout(6000) }),
+      ]);
+      if (mRes.ok) setMetrics(await mRes.json());
+      if (hRes.ok) { const d = await hRes.json(); setHistory(d.history || []); }
+      if (!mRes.ok && !hRes.ok) setError('Backend unreachable — start with: uvicorn main:app --reload --port 8000');
+    } catch (e) {
+      setError('Could not reach backend: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const verdictColors = {
+    TRUE: 'var(--green)', FALSE: 'var(--red)',
+    MISLEADING: 'var(--amber)', CONFLICTING: 'var(--orange)', UNVERIFIED: 'var(--slate)',
+  };
+
+  const dist  = metrics?.verdict_distribution || {};
+  const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+  const breakers = metrics?.circuit_breakers || {};
+
   return (
     <div id="dashboardView">
-      <div className="search-heading" style={{ marginBottom: '1.5rem' }}>System Dashboard</div>
+      <div className="search-heading" style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: 12 }}>
+        System Dashboard
+        <button onClick={load} disabled={loading} style={{ fontSize: 12, padding: '4px 12px', border: '1px solid var(--gray-200)', borderRadius: 6, background: 'var(--white)', cursor: 'pointer', color: 'var(--gray-600)' }}>
+          {loading ? '…' : '↻ Refresh'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ background: '#fff5f5', border: '1px solid var(--red-border)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--red)', marginBottom: '1.25rem' }}>
+          ⚠️ {error}
+        </div>
+      )}
+
+      {/* Live metric cards */}
       <div className="metric-grid" style={{ marginBottom: '1.5rem' }}>
         {[
-          { value: '868',  label: 'Total Claims'    },
-          { value: '81%',  label: 'Avg Confidence'  },
-          { value: '67%',  label: 'Cache Hit Rate'  },
-          { value: '43%',  label: 'Early Exit Rate' },
-          { value: '5.8s', label: 'Avg Processing'  },
-          { value: '71%',  label: 'Ollama Usage'    },
+          { label: 'Total Reports', value: metrics?.total_reports ?? '—' },
+          { label: 'Redis Cache',   value: metrics == null ? '—' : metrics.redis_connected ? '✅ Online' : '❌ Offline' },
+          { label: 'Database',      value: metrics == null ? '—' : metrics.db_connected    ? '✅ Online' : '❌ Offline' },
+          { label: 'API Version',   value: metrics?.version ?? '—' },
+          { label: 'Offline Mode',  value: metrics == null ? '—' : metrics.offline_mode ? 'Yes' : 'No' },
         ].map(m => (
           <div key={m.label} className="metric-card">
-            <span className="metric-value">{m.value}</span>
+            <span className="metric-value" style={{ fontSize: 18 }}>{String(m.value)}</span>
             <div className="metric-label">{m.label}</div>
           </div>
         ))}
       </div>
 
+      {/* Verdict distribution */}
       <div style={{ background: 'var(--white)', border: '1px solid var(--gray-100)', borderRadius: 12, padding: '1.25rem', marginBottom: '1.25rem' }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 12 }}>Verdict Distribution</div>
-        {[
-          { label: 'TRUE',        pct: 16, count: 142, color: 'var(--green)'  },
-          { label: 'FALSE',       pct: 45, count: 389, color: 'var(--red)'    },
-          { label: 'MISLEADING',  pct: 23, count: 201, color: 'var(--amber)'  },
-          { label: 'CONFLICTING', pct: 5,  count: 47,  color: 'var(--orange)' },
-          { label: 'UNVERIFIED',  pct: 10, count: 89,  color: 'var(--slate)'  },
-        ].map(v => (
-          <div key={v.label} className="bar-row">
-            <div className="bar-label" style={{ width: 90, fontSize: 13, color: 'var(--gray-600)', fontWeight: 500 }}>{v.label}</div>
-            <div className="bar-track" style={{ flex: 1, height: 10, background: 'var(--gray-100)', borderRadius: 5, overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${v.pct}%`, background: v.color, borderRadius: 5 }} />
+        {loading && <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>Loading…</div>}
+        {!loading && !Object.keys(dist).length && <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>No reports yet.</div>}
+        {Object.entries(dist).map(([verdict, count]) => {
+          const pct   = Math.round((count / total) * 100);
+          const color = verdictColors[verdict] || 'var(--accent)';
+          return (
+            <div key={verdict} className="bar-row">
+              <div className="bar-label" style={{ width: 90, fontSize: 13, color: 'var(--gray-600)', fontWeight: 500 }}>{verdict.slice(0, 9)}</div>
+              <div className="bar-track" style={{ flex: 1, height: 10, background: 'var(--gray-100)', borderRadius: 5, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 5 }} />
+              </div>
+              <div style={{ width: 44, textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 500 }}>{count}</div>
             </div>
-            <div style={{ width: 44, textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 13, fontWeight: 500 }}>{v.count}</div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      <div className="trace-section">
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 12 }}>LLM Provider Usage</div>
-        <div className="trace-grid">
-          {[['Ollama (Primary)', '71%'], ['Gemini Flash', '18%'], ['Groq Llama', '8%'], ['Rule-Based', '3%']].map(([k, v]) => (
-            <div key={k} className="trace-item">
-              <div className="trace-key">{k}</div>
-              <div className="trace-value">{v}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="trace-section" style={{ marginTop: '1.25rem' }}>
+      {/* Circuit breakers */}
+      <div className="trace-section" style={{ marginBottom: '1.25rem' }}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 12 }}>Circuit Breaker Status</div>
         <div className="trace-grid">
-          {[['NewsAPI', false], ['Snopes', true], ['SERP', false], ['GDELT', false]].map(([name, open]) => (
-            <div key={name} className="trace-item">
-              <div className="trace-key">{name}</div>
-              <div className="trace-value trace-flag">
-                <div className={`flag-dot ${open ? 'flag-on' : 'flag-off'}`} />
-                {open ? 'OPEN ×1' : 'CLOSED'}
+          {loading && <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>Loading…</div>}
+          {!loading && !Object.keys(breakers).length && <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>No circuit breaker data.</div>}
+          {Object.entries(breakers).map(([name, state]) => {
+            const isOpen = state === 'OPEN' || state === true || (typeof state === 'object' && state?.state === 'OPEN');
+            const label  = typeof state === 'string' ? state : (isOpen ? 'OPEN' : 'CLOSED');
+            return (
+              <div key={name} className="trace-item">
+                <div className="trace-key">{name}</div>
+                <div className="trace-value trace-flag">
+                  <div className={`flag-dot ${isOpen ? 'flag-on' : 'flag-off'}`} />
+                  {label}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      </div>
+
+      {/* Recent history table */}
+      <div style={{ background: 'var(--white)', border: '1px solid var(--gray-100)', borderRadius: 12, padding: '1.25rem' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 12 }}>Recent Verification History</div>
+        {loading && <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>Loading…</div>}
+        {!loading && !history.length && <div style={{ fontSize: 12, color: 'var(--gray-400)' }}>No verifications yet.</div>}
+        {history.length > 0 && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--gray-100)' }}>
+                {['Claim', 'Verdict', 'Time'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '8px 6px', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--gray-400)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {history.slice(0, 10).map((row, i) => {
+                const v     = (row.verdict || 'UNVERIFIED').toUpperCase();
+                const color = verdictColors[v] || 'var(--slate)';
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid var(--gray-50)' }}>
+                    <td style={{ padding: '8px 6px', color: 'var(--gray-800)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(row.claim || '').slice(0, 80)}</td>
+                    <td style={{ padding: '8px 6px', fontWeight: 700, color }}>{v}</td>
+                    <td style={{ padding: '8px 6px', color: 'var(--gray-400)', fontSize: 12, whiteSpace: 'nowrap' }}>{row.timestamp || ''}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ Compatibility shim (React frontend / no Celery):
   GET   /history              → last 30 from DB (or in-memory fallback)
   DELETE /history/clear
   GET   /health
+  OPTIONS *                   → CORS preflight handled automatically by middleware
 """
 
 import asyncio
@@ -25,7 +26,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -115,13 +116,56 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# ── FIX 1: CORS — explicit origins covering all dev/prod scenarios ────────────
+# allow_origins=["*"] conflicts with allow_credentials=True in some browsers.
+# We list explicit origins AND keep "*" as a fallback via allow_origin_regex.
+# Also explicitly list all methods and headers so OPTIONS preflight always passes.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # tighten in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:3000",       # React dev server (default CRA port)
+        "http://localhost:3001",       # alternate React port
+        "http://localhost:5173",       # Vite dev server
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:5173",
+        "http://localhost:8080",       # serve / nginx dev
+        "http://127.0.0.1:8080",
+        "null",                        # file:// origin (index.html opened directly)
+    ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=False,           # FIX: must be False when allow_origins includes "*"-style
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "X-Request-ID",
+    ],
+    expose_headers=["X-Request-ID"],
+    max_age=600,
 )
+
+# ── FIX 2: Global OPTIONS handler — catches any preflight the middleware misses
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(rest_of_path: str, request: Request):
+    """
+    Explicit OPTIONS handler.  The CORSMiddleware should handle this, but
+    some reverse-proxy / uvicorn configurations swallow preflight requests
+    before they reach the middleware.  This is a belt-and-suspenders fix.
+    """
+    origin = request.headers.get("origin", "*")
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept, Origin, X-Requested-With",
+            "Access-Control-Max-Age": "600",
+        },
+    )
 
 # Serve the React frontend build at /  (optional — frontend runs dev server)
 try:
@@ -270,6 +314,11 @@ def _format_for_ui(raw: dict, claim: str, claim_type_hint: str = "general") -> d
         "avg_credibility": algo_trace.get("avg_credibility", 0),
         "agreement": algo_trace.get("agreement", 0),
         "llm_provider_used": llm_provider,
+        # FIX 3: include threshold fields the frontend trace tab expects
+        "threshold_TRUE": algo_trace.get("threshold_TRUE", 0.75),
+        "threshold_FALSE": algo_trace.get("threshold_FALSE", 0.25),
+        "temporal_mismatch": algo_trace.get("temporal_mismatch", False),
+        "echo_chamber_penalty": algo_trace.get("echo_chamber_penalty", False),
     }
 
     return {
@@ -280,6 +329,9 @@ def _format_for_ui(raw: dict, claim: str, claim_type_hint: str = "general") -> d
         "explanation": explanation,
         "llm_provider": llm_provider,
         "claim_type": claim_type,
+        # FIX 4: include claim_text so the frontend can display it in the
+        # verdict card without needing to pass it separately
+        "claim_text": claim,
         # Timing
         "processing_ms": proc_ms,
         "cached": cached,
@@ -633,13 +685,39 @@ async def v1_metrics():
 # COMPATIBILITY SHIM  (React frontend uses these routes directly)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# FIX 5: Accept both "claim" and "text" field names so old and new frontends work
+class VerifyRequestCompat(BaseModel):
+    claim: str = ""
+    text: str = ""                    # alias used by some older frontend versions
+    input_type: str = "text"
+    claim_type: str = "general"
+    image_url: Optional[str] = None
+    image_base64: Optional[str] = None
+
+
 @app.post("/verify")
-async def verify_compat(body: VerifyRequest):
+async def verify_compat(body: VerifyRequestCompat):
     """
     Synchronous /verify shim for the React frontend.
     Runs the full pipeline inline (no Celery) and returns the formatted report.
+
+    FIX 5 cont.: Accepts both { claim: "..." } and { text: "..." } JSON bodies.
+    FIX 6: Returns JSON with Content-Type: application/json (FastAPI default).
     """
-    claim = await _extract_claim_from_request(body)
+    # Resolve claim text — prefer "claim", fall back to "text"
+    raw_body = body.dict()
+    claim_text = (raw_body.get("claim") or raw_body.get("text") or "").strip()
+
+    # Build a VerifyRequest for the shared extraction helper
+    compat_body = VerifyRequest(
+        claim=claim_text,
+        input_type=body.input_type,
+        claim_type=body.claim_type,
+        image_url=body.image_url,
+        image_base64=body.image_base64,
+    )
+
+    claim = await _extract_claim_from_request(compat_body)
     if not claim:
         raise HTTPException(status_code=400, detail="No claim text could be extracted.")
 

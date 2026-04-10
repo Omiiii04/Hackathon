@@ -1,54 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
-const DEMO_CHAINS = [
-  {
-    original: '5G towers cause COVID-19 symptoms',
-    verdict: 'FALSE',
-    confidence: 0.94,
-    first_seen: '2020-03-18',
-    variants: [
-      { text: 'Radiation from cell towers causes flu-like illness', similarity: 0.82, verdict: 'FALSE', date: '2020-04-10' },
-      { text: 'WiFi signals weaken the immune system against viruses', similarity: 0.76, verdict: 'FALSE', date: '2020-02-03' },
-      { text: '5G rollout correlates with pandemic hotspots', similarity: 0.71, verdict: 'FALSE', date: '2020-05-22' },
-      { text: 'Millimeter wave radiation linked to respiratory illness', similarity: 0.68, verdict: 'FALSE', date: '2020-06-01' },
-    ],
-    tags: ['Debunked ×4', 'High mutation rate', 'Echo chamber detected'],
-  },
-  {
-    original: 'Vaccines contain microchips for tracking',
-    verdict: 'FALSE',
-    confidence: 0.97,
-    first_seen: '2021-01-05',
-    variants: [
-      { text: 'mRNA vaccines alter human DNA permanently', similarity: 0.79, verdict: 'FALSE', date: '2021-02-14' },
-      { text: 'COVID vaccine contains graphene oxide nano-particles', similarity: 0.74, verdict: 'FALSE', date: '2021-04-30' },
-      { text: 'Bill Gates funded vaccine includes surveillance tech', similarity: 0.69, verdict: 'FALSE', date: '2021-03-10' },
-    ],
-    tags: ['Debunked ×3', 'Cross-platform spread', 'Coordinated amplification'],
-  },
-  {
-    original: 'WHO declared mpox a global health emergency',
-    verdict: 'TRUE',
-    confidence: 0.91,
-    first_seen: '2024-08-14',
-    variants: [
-      { text: 'Monkeypox declared Public Health Emergency of International Concern', similarity: 0.95, verdict: 'TRUE', date: '2024-08-14' },
-      { text: 'WHO raises mpox alert to highest level', similarity: 0.88, verdict: 'TRUE', date: '2024-08-15' },
-    ],
-    tags: ['Confirmed true', 'Semantic variants only', 'Low risk'],
-  },
-  {
-    original: 'Parliament passed new surveillance bill secretly',
-    verdict: 'UNVERIFIED',
-    confidence: 0.52,
-    first_seen: '2024-11-02',
-    variants: [
-      { text: 'Government introduced mass surveillance legislation', similarity: 0.77, verdict: 'UNVERIFIED', date: '2024-11-03' },
-      { text: 'New law allows agencies to monitor all internet traffic', similarity: 0.71, verdict: 'MISLEADING', date: '2024-11-05' },
-    ],
-    tags: ['Unverified origin', 'Escalating mutation', 'Monitor'],
-  },
-];
+const BACKEND_URL = 'http://localhost:8000';
 
 const VERDICT_COLORS = {
   TRUE:        { bg:'#dcfce7', color:'#15803d' },
@@ -69,7 +21,7 @@ function VerdictPill({ verdict }) {
 }
 
 function SimilarityBar({ value }) {
-  const pct = Math.round(value * 100);
+  const pct   = Math.round(value * 100);
   const color = pct >= 80 ? 'var(--red)' : pct >= 65 ? 'var(--amber)' : 'var(--green)';
   return (
     <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -81,17 +33,76 @@ function SimilarityBar({ value }) {
   );
 }
 
+/**
+ * Build mutation chain groups from the raw /history items.
+ * Each history item may include a `mutation_chain` array from the backend.
+ * We surface those alongside any `is_mutation` items.
+ */
+function buildChains(historyItems) {
+  const chains = [];
+  for (const item of historyItems) {
+    if (!item.claim) continue;
+    const mc = item.mutation_chain || [];
+    if (mc.length > 0 || item.is_mutation) {
+      chains.push({
+        original:    item.claim,
+        verdict:     item.verdict || 'UNVERIFIED',
+        confidence:  item.confidence ?? null,
+        first_seen:  item.timestamp || '',
+        variants:    mc.map(v => ({
+          text:       v.text  || '',
+          similarity: v.similarity ?? 0,
+          verdict:    v.verdict    || 'UNVERIFIED',
+          date:       v.date       || '',
+        })),
+      });
+    }
+  }
+  return chains;
+}
+
 export function MutationChains() {
-  const [expanded, setExpanded] = useState({ 0: true });
+  const [chains,   setChains]   = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState('');
+  const [expanded, setExpanded] = useState({});
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      // Pull the full history — the backend returns `mutation_chain` per report
+      const r = await fetch(`${BACKEND_URL}/v1/history?limit=50`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const built = buildChains(data.history || []);
+      setChains(built);
+      // Auto-expand the first entry
+      if (built.length) setExpanded({ 0: true });
+    } catch (e) {
+      setError('Could not load mutation chains: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const toggle = (i) => setExpanded(prev => ({ ...prev, [i]: !prev[i] }));
 
   return (
     <div id="mutationChainsView">
-      <div className="search-heading" style={{ marginBottom:'0.25rem' }}>Mutation Chains</div>
+      <div className="search-heading" style={{ marginBottom:'0.25rem', display:'flex', alignItems:'center', gap:12 }}>
+        Mutation Chains
+        <button onClick={load} disabled={loading} style={{ fontSize:12, padding:'4px 12px', border:'1px solid var(--gray-200)', borderRadius:6, background:'var(--white)', cursor:'pointer', color:'var(--gray-600)' }}>
+          {loading ? '…' : '↻ Refresh'}
+        </button>
+      </div>
       <div className="search-sub" style={{ marginBottom:'1.5rem' }}>
-        Semantic variants of previously verified claims — detected via embedding similarity. High-similarity
-        variants share misinformation DNA regardless of surface wording.
+        Semantic variants of previously verified claims — detected via embedding similarity.
+        High-similarity variants share misinformation DNA regardless of surface wording.
       </div>
 
       {/* Legend */}
@@ -108,8 +119,23 @@ export function MutationChains() {
         ))}
       </div>
 
+      {error && (
+        <div style={{ background:'#fff5f5', border:'1px solid var(--red-border)', borderRadius:8, padding:'10px 14px', fontSize:13, color:'var(--red)', marginBottom:'1.25rem' }}>
+          ⚠️ {error}
+        </div>
+      )}
+
+      {loading && <div style={{ fontSize:13, color:'var(--gray-400)', padding:'2rem', textAlign:'center' }}>Loading mutation chains from backend…</div>}
+
+      {!loading && !chains.length && !error && (
+        <div style={{ fontSize:13, color:'var(--gray-400)', padding:'2rem', textAlign:'center', background:'var(--white)', border:'1px solid var(--gray-100)', borderRadius:12 }}>
+          No mutation chains detected yet.<br />
+          <span style={{ fontSize:12 }}>Chains appear when verified claims contain a <code>mutation_chain</code> from the backend pipeline.</span>
+        </div>
+      )}
+
       {/* Chain cards */}
-      {DEMO_CHAINS.map((chain, i) => (
+      {chains.map((chain, i) => (
         <div key={i} className="mutation-section" style={{
           background: chain.verdict === 'FALSE' ? '#fff7ed' : chain.verdict === 'TRUE' ? '#f0fdf4' : '#f8fafc',
           border: `1px solid ${chain.verdict === 'FALSE' ? 'var(--orange-border)' : chain.verdict === 'TRUE' ? '#bbf7d0' : 'var(--gray-100)'}`,
@@ -127,15 +153,11 @@ export function MutationChains() {
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                 <VerdictPill verdict={chain.verdict} />
-                <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:'var(--gray-500)' }}>
-                  conf: {chain.confidence} · first seen {chain.first_seen}
-                </span>
-              </div>
-              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:8 }}>
-                {chain.tags.map(t => (
-                  <span key={t} style={{ fontSize:10, background:'var(--gray-100)', color:'var(--gray-600)',
-                    borderRadius:4, padding:'2px 7px', fontWeight:500 }}>{t}</span>
-                ))}
+                {chain.confidence !== null && (
+                  <span style={{ fontFamily:"'DM Mono',monospace", fontSize:11, color:'var(--gray-500)' }}>
+                    conf: {chain.confidence} · {chain.first_seen}
+                  </span>
+                )}
               </div>
             </div>
             <div style={{ fontSize:18, color:'var(--gray-400)', userSelect:'none', marginTop:2 }}>
@@ -144,7 +166,7 @@ export function MutationChains() {
           </div>
 
           {/* Variants list */}
-          {expanded[i] && (
+          {expanded[i] && chain.variants.length > 0 && (
             <div style={{ marginTop:14, borderTop:`1px solid ${chain.verdict === 'FALSE' ? 'var(--orange-border)' : 'var(--gray-100)'}`, paddingTop:14 }}>
               <div style={{ fontSize:11, fontWeight:600, textTransform:'uppercase', letterSpacing:'0.07em',
                 color:'var(--gray-400)', marginBottom:10 }}>
@@ -162,13 +184,17 @@ export function MutationChains() {
               ))}
             </div>
           )}
+
+          {expanded[i] && chain.variants.length === 0 && (
+            <div style={{ marginTop:12, fontSize:12, color:'var(--gray-400)' }}>
+              No variant chain data recorded for this claim.
+            </div>
+          )}
         </div>
       ))}
 
-      {/* Footer note */}
       <div style={{ fontSize:12, color:'var(--gray-400)', textAlign:'center', marginTop:8, padding:'0 1rem' }}>
-        Chains are generated via cosine similarity on 384-dim sentence embeddings (all-MiniLM-L6-v2).
-        Threshold: 0.65.
+        Chains detected via cosine similarity on 384-dim sentence embeddings (all-MiniLM-L6-v2). Threshold: 0.65.
       </div>
     </div>
   );

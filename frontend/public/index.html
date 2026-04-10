@@ -1385,45 +1385,8 @@
 
     <div class="sidebar-section">
       <div class="sidebar-label">Recent Checks</div>
-
-      <div class="history-item" onclick="loadDemo('FALSE')">
-        <div class="history-claim">5G towers cause COVID-19</div>
-        <div class="history-meta">
-          <span class="verdict-pill v-FALSE">FALSE</span>
-          <span class="history-time">2h ago</span>
-        </div>
-      </div>
-
-      <div class="history-item" onclick="loadDemo('CONFLICTING')">
-        <div class="history-claim">New study links coffee to longevity</div>
-        <div class="history-meta">
-          <span class="verdict-pill v-CONFLICTING">CONFLICTING</span>
-          <span class="history-time">5h ago</span>
-        </div>
-      </div>
-
-      <div class="history-item" onclick="loadDemo('TRUE')">
-        <div class="history-claim">WHO declared mpox a global emergency</div>
-        <div class="history-meta">
-          <span class="verdict-pill v-TRUE">TRUE</span>
-          <span class="history-time">1d ago</span>
-        </div>
-      </div>
-
-      <div class="history-item" onclick="loadDemo('MISLEADING')">
-        <div class="history-claim">Government secretly tracking citizens via vaccine</div>
-        <div class="history-meta">
-          <span class="verdict-pill v-MISLEADING">MISLEADING</span>
-          <span class="history-time">2d ago</span>
-        </div>
-      </div>
-
-      <div class="history-item" onclick="loadDemo('UNVERIFIED')">
-        <div class="history-claim">Breaking: parliament dissolves unexpectedly</div>
-        <div class="history-meta">
-          <span class="verdict-pill v-UNVERIFIED">UNVERIFIED</span>
-          <span class="history-time">3d ago</span>
-        </div>
+      <div id="sidebarHistory">
+        <div style="font-size:12px;color:var(--gray-400);padding:8px 0;">Loading history…</div>
       </div>
     </div>
   </aside>
@@ -1651,69 +1614,55 @@
 
     <!-- ── DASHBOARD VIEW ── -->
     <div id="dashboardView" style="display:none">
-      <div class="search-heading" style="margin-bottom:1.5rem;">System Dashboard</div>
+      <div class="search-heading" style="margin-bottom:1.5rem;">System Dashboard
+        <button onclick="loadMetrics()" style="margin-left:12px;font-size:12px;padding:4px 12px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;color:var(--gray-600);">↻ Refresh</button>
+      </div>
 
-      <div class="metric-grid" style="margin-bottom:1.5rem;">
+      <!-- Live metric cards -->
+      <div class="metric-grid" style="margin-bottom:1.5rem;" id="dashMetricGrid">
         <div class="metric-card">
-          <span class="metric-value">868</span>
-          <div class="metric-label">Total Claims</div>
+          <span class="metric-value" id="dashTotalReports">—</span>
+          <div class="metric-label">Total Reports</div>
         </div>
         <div class="metric-card">
-          <span class="metric-value">81%</span>
-          <div class="metric-label">Avg Confidence</div>
+          <span class="metric-value" id="dashRedisStatus">—</span>
+          <div class="metric-label">Redis Cache</div>
         </div>
         <div class="metric-card">
-          <span class="metric-value">67%</span>
-          <div class="metric-label">Cache Hit Rate</div>
+          <span class="metric-value" id="dashDbStatus">—</span>
+          <div class="metric-label">Database</div>
         </div>
         <div class="metric-card">
-          <span class="metric-value">43%</span>
-          <div class="metric-label">Early Exit Rate</div>
+          <span class="metric-value" id="dashVersion">—</span>
+          <div class="metric-label">API Version</div>
         </div>
         <div class="metric-card">
-          <span class="metric-value">5.8s</span>
-          <div class="metric-label">Avg Processing</div>
-        </div>
-        <div class="metric-card">
-          <span class="metric-value">71%</span>
-          <div class="metric-label">Ollama Usage</div>
+          <span class="metric-value" id="dashOfflineMode">—</span>
+          <div class="metric-label">Offline Mode</div>
         </div>
       </div>
 
+      <!-- Live verdict distribution -->
       <div class="support-bar-section">
         <div class="section-title">Verdict Distribution</div>
-        <div class="bar-row"><div class="bar-label">TRUE</div><div class="bar-track"><div class="bar-fill bar-support" style="width:16%"></div></div><div class="bar-pct">142</div></div>
-        <div class="bar-row"><div class="bar-label">FALSE</div><div class="bar-track"><div class="bar-fill bar-contradict" style="width:45%"></div></div><div class="bar-pct">389</div></div>
-        <div class="bar-row"><div class="bar-label">MISLEAD</div><div class="bar-track"><div class="bar-fill" style="width:23%;background:var(--amber)"></div></div><div class="bar-pct">201</div></div>
-        <div class="bar-row"><div class="bar-label">CONFLICT</div><div class="bar-track"><div class="bar-fill" style="width:5%;background:var(--orange)"></div></div><div class="bar-pct">47</div></div>
-        <div class="bar-row"><div class="bar-label">UNVERIF</div><div class="bar-track"><div class="bar-fill" style="width:10%;background:var(--slate)"></div></div><div class="bar-pct">89</div></div>
-      </div>
-
-      <div class="support-bar-section">
-        <div class="section-title">Claim Type Distribution</div>
-        <div class="bar-row"><div class="bar-label">General</div><div class="bar-track"><div class="bar-fill" style="width:45%;background:var(--accent)"></div></div><div class="bar-pct">45%</div></div>
-        <div class="bar-row"><div class="bar-label">Political</div><div class="bar-track"><div class="bar-fill" style="width:30%;background:var(--accent)"></div></div><div class="bar-pct">30%</div></div>
-        <div class="bar-row"><div class="bar-label">Breaking</div><div class="bar-track"><div class="bar-fill" style="width:15%;background:var(--accent)"></div></div><div class="bar-pct">15%</div></div>
-        <div class="bar-row"><div class="bar-label">Scientific</div><div class="bar-track"><div class="bar-fill" style="width:10%;background:var(--accent)"></div></div><div class="bar-pct">10%</div></div>
-      </div>
-
-      <div class="trace-section">
-        <div class="section-title">LLM Provider Usage</div>
-        <div class="trace-grid">
-          <div class="trace-item"><div class="trace-key">Ollama (Primary)</div><div class="trace-value">71%</div></div>
-          <div class="trace-item"><div class="trace-key">Gemini Flash</div><div class="trace-value">18%</div></div>
-          <div class="trace-item"><div class="trace-key">Groq Llama</div><div class="trace-value">8%</div></div>
-          <div class="trace-item"><div class="trace-key">Rule-Based</div><div class="trace-value">3%</div></div>
+        <div id="dashVerdictDist">
+          <div style="font-size:12px;color:var(--gray-400);">Loading…</div>
         </div>
       </div>
 
+      <!-- Circuit breakers from real /v1/metrics -->
       <div class="trace-section">
         <div class="section-title">Circuit Breaker Status</div>
-        <div class="trace-grid">
-          <div class="trace-item"><div class="trace-key">NewsAPI</div><div class="trace-value trace-flag"><div class="flag-dot flag-off"></div> CLOSED</div></div>
-          <div class="trace-item"><div class="trace-key">Snopes</div><div class="trace-value trace-flag"><div class="flag-dot flag-on"></div> OPEN ×1</div></div>
-          <div class="trace-item"><div class="trace-key">SERP</div><div class="trace-value trace-flag"><div class="flag-dot flag-off"></div> CLOSED</div></div>
-          <div class="trace-item"><div class="trace-key">GDELT</div><div class="trace-value trace-flag"><div class="flag-dot flag-off"></div> CLOSED</div></div>
+        <div class="trace-grid" id="dashCircuitBreakers">
+          <div style="font-size:12px;color:var(--gray-400);">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Recent history table from /history -->
+      <div class="support-bar-section" style="margin-top:1.5rem;">
+        <div class="section-title">Recent Verification History</div>
+        <div id="dashHistoryTable">
+          <div style="font-size:12px;color:var(--gray-400);">Loading…</div>
         </div>
       </div>
     </div>
@@ -1781,6 +1730,14 @@
 
 <script>
 /* ─────────────────────────────────────────── */
+/*  CONFIG                                     */
+/* ─────────────────────────────────────────── */
+// FIX: Backend URL — update this if your backend runs on a different port.
+// When opening index.html directly as file:// the browser still reaches
+// localhost:8000 because we do NOT use relative URLs.
+const BACKEND_URL = 'http://localhost:8000';
+
+/* ─────────────────────────────────────────── */
 /*  STATE                                      */
 /* ─────────────────────────────────────────── */
 let currentProfile = 'general';
@@ -1791,278 +1748,6 @@ let currentReport = null;
 const profiles = ['general', 'journalist', 'researcher'];
 const profileLabels = { general: 'General', journalist: 'Journalist', researcher: 'Researcher' };
 
-/* ─────────────────────────────────────────── */
-/*  DEMO DATA                                  */
-/* ─────────────────────────────────────────── */
-const demoReports = {
-  FALSE: {
-    verdict: 'FALSE',
-    confidence: 0.84,
-    claim_type: 'scientific',
-    claim_text: '5G towers cause COVID-19 symptoms',
-    explanation: 'Multiple Tier-1 scientific institutions including WHO and CDC have found no causal link between 5G radio frequencies and COVID-19 or its symptoms. The coronavirus is a biological pathogen transmitted person-to-person; electromagnetic waves cannot cause viral infections.',
-    llm_provider: 'ollama',
-    processing_ms: 5840,
-    cached: false,
-    early_exit: true,
-    support_bar: { support_pct: 8, contradict_pct: 92 },
-    is_mutation: true,
-    mutation_similarity: 0.82,
-    mutation_original: 'Radiation from cell towers causes flu-like illness',
-    adversarial: true,
-    adversarial_signal: 'COORDINATED_SOURCE_SPAM: 4 low-credibility sources published within 1h',
-    verdict_tags: ['Low credibility sources', 'Early exit triggered', 'Echo chamber detected'],
-    sources: [
-      { name: 'WHO', domain: 'who.int', tier: 1, credibility: 0.97, stance: 'CONTRADICTING', date: 'Mar 2024', shift: +0.02 },
-      { name: 'CDC', domain: 'cdc.gov', tier: 1, credibility: 0.96, stance: 'CONTRADICTING', date: 'Feb 2024', shift: 0 },
-      { name: 'Reuters', domain: 'reuters.com', tier: 1, credibility: 0.93, stance: 'CONTRADICTING', date: 'Jan 2024', shift: +0.01 },
-      { name: 'The Guardian', domain: 'guardian.com', tier: 2, credibility: 0.82, stance: 'CONTRADICTING', date: 'Dec 2023', shift: -0.01 },
-      { name: 'Unknown Blog', domain: 'healthtruth.net', tier: 4, credibility: 0.28, stance: 'SUPPORTING', date: 'Jan 2024', shift: -0.03 },
-    ],
-    sub_claims: [
-      { text: '5G towers emit harmful radiation', verdict: 'FALSE' },
-      { text: 'COVID-19 was man-made', verdict: 'MISLEADING' },
-      { text: 'Masks do not prevent viral spread', verdict: 'FALSE' },
-    ],
-    trace: {
-      support_ratio: 0.087,
-      total_evidence_items: 18,
-      tier1_sources_found: 3,
-      temporal_mismatch: false,
-      echo_chamber_penalty: false,
-      early_exit_triggered: true,
-      event_date: '2024-01-10',
-      utterance_date: '2024-01-15',
-      confidence_raw: 0.89,
-      confidence_final: 0.84,
-      claim_type: 'scientific',
-      threshold_TRUE: 0.75,
-      threshold_FALSE: 0.25,
-    },
-    evidence_graph: {
-      nodes: [
-        { id: 'who.int', tier: 1, stance: 'CONTRADICTING', score: 0.91 },
-        { id: 'cdc.gov', tier: 1, stance: 'CONTRADICTING', score: 0.88 },
-        { id: 'reuters.com', tier: 1, stance: 'CONTRADICTING', score: 0.83 },
-        { id: 'guardian.com', tier: 2, stance: 'CONTRADICTING', score: 0.72 },
-        { id: 'healthtruth.net', tier: 4, stance: 'SUPPORTING', score: 0.21 },
-      ],
-      edges: [
-        { source: 'who.int', target: 'cdc.gov', claim_overlap: 0.85 },
-        { source: 'who.int', target: 'reuters.com', claim_overlap: 0.71 },
-        { source: 'cdc.gov', target: 'guardian.com', claim_overlap: 0.63 },
-      ]
-    },
-    mutation_chain: [
-      { text: 'Radiation from cell towers causes flu-like illness', similarity: 0.82, verdict: 'FALSE', date: '2020-04-10' },
-      { text: 'WiFi signals weaken immune system', similarity: 0.76, verdict: 'FALSE', date: '2020-02-03' },
-    ]
-  },
-
-  TRUE: {
-    verdict: 'TRUE',
-    confidence: 0.91,
-    claim_type: 'breaking_news',
-    claim_text: 'WHO declared mpox a global health emergency',
-    explanation: 'The World Health Organization officially declared mpox (formerly monkeypox) a Public Health Emergency of International Concern in August 2024, citing accelerating spread across multiple continents. This declaration was confirmed by multiple Tier-1 sources including Reuters, AP News, and BBC.',
-    llm_provider: 'ollama',
-    processing_ms: 4200,
-    cached: true,
-    early_exit: false,
-    support_bar: { support_pct: 94, contradict_pct: 6 },
-    is_mutation: false,
-    adversarial: false,
-    verdict_tags: ['3 Tier-1 sources', 'High confidence', 'Multiple corroborating sources'],
-    sources: [
-      { name: 'AP News', domain: 'apnews.com', tier: 1, credibility: 0.95, stance: 'SUPPORTING', date: 'Aug 2024', shift: +0.01 },
-      { name: 'BBC', domain: 'bbc.com', tier: 1, credibility: 0.94, stance: 'SUPPORTING', date: 'Aug 2024', shift: 0 },
-      { name: 'Reuters', domain: 'reuters.com', tier: 1, credibility: 0.93, stance: 'SUPPORTING', date: 'Aug 2024', shift: +0.02 },
-      { name: 'NYT', domain: 'nytimes.com', tier: 2, credibility: 0.85, stance: 'SUPPORTING', date: 'Aug 2024', shift: 0 },
-    ],
-    sub_claims: [
-      { text: 'WHO made an official declaration', verdict: 'TRUE' },
-      { text: 'Mpox spreads across multiple continents', verdict: 'TRUE' },
-      { text: 'Emergency protocols were activated', verdict: 'TRUE' },
-    ],
-    trace: {
-      support_ratio: 0.940,
-      total_evidence_items: 12,
-      tier1_sources_found: 3,
-      temporal_mismatch: false,
-      echo_chamber_penalty: false,
-      early_exit_triggered: false,
-      event_date: '2024-08-14',
-      utterance_date: '2024-08-15',
-      confidence_raw: 0.94,
-      confidence_final: 0.91,
-      claim_type: 'breaking_news',
-      threshold_TRUE: 0.70,
-      threshold_FALSE: 0.30,
-    },
-    evidence_graph: {
-      nodes: [
-        { id: 'apnews.com', tier: 1, stance: 'SUPPORTING', score: 0.93 },
-        { id: 'bbc.com', tier: 1, stance: 'SUPPORTING', score: 0.90 },
-        { id: 'reuters.com', tier: 1, stance: 'SUPPORTING', score: 0.87 },
-        { id: 'nytimes.com', tier: 2, stance: 'SUPPORTING', score: 0.79 },
-      ],
-      edges: [
-        { source: 'apnews.com', target: 'bbc.com', claim_overlap: 0.80 },
-        { source: 'apnews.com', target: 'reuters.com', claim_overlap: 0.75 },
-        { source: 'bbc.com', target: 'nytimes.com', claim_overlap: 0.66 },
-      ]
-    },
-    mutation_chain: []
-  },
-
-  CONFLICTING: {
-    verdict: 'CONFLICTING',
-    confidence: 0.62,
-    claim_type: 'scientific',
-    claim_text: 'New study links coffee to longevity',
-    explanation: 'High-credibility scientific sources disagree on this claim. While several observational studies suggest moderate coffee consumption correlates with longevity markers, other peer-reviewed research highlights confounding variables and warns against establishing causality.',
-    llm_provider: 'gemini',
-    processing_ms: 7100,
-    cached: false,
-    early_exit: false,
-    support_bar: { support_pct: 52, contradict_pct: 48 },
-    is_mutation: false,
-    adversarial: false,
-    verdict_tags: ['Split evidence', 'Scientific claim', 'Peer-reviewed sources'],
-    sources: [
-      { name: 'NEJM', domain: 'nejm.org', tier: 1, credibility: 0.95, stance: 'SUPPORTING', date: 'Nov 2023', shift: 0 },
-      { name: 'The Lancet', domain: 'thelancet.com', tier: 1, credibility: 0.94, stance: 'CONTRADICTING', date: 'Oct 2023', shift: +0.01 },
-      { name: 'Harvard Health', domain: 'health.harvard.edu', tier: 2, credibility: 0.88, stance: 'SUPPORTING', date: 'Sep 2023', shift: 0 },
-      { name: 'BMJ', domain: 'bmj.com', tier: 1, credibility: 0.93, stance: 'CONTRADICTING', date: 'Aug 2023', shift: -0.01 },
-    ],
-    sub_claims: [
-      { text: 'Observational studies show correlation', verdict: 'TRUE' },
-      { text: 'Causal link is established', verdict: 'MISLEADING' },
-      { text: 'Effect is universal across populations', verdict: 'CONFLICTING' },
-    ],
-    trace: {
-      support_ratio: 0.520,
-      total_evidence_items: 14,
-      tier1_sources_found: 4,
-      temporal_mismatch: false,
-      echo_chamber_penalty: false,
-      early_exit_triggered: false,
-      event_date: '2023-11-01',
-      utterance_date: '2023-11-05',
-      confidence_raw: 0.67,
-      confidence_final: 0.62,
-      claim_type: 'scientific',
-      threshold_TRUE: 0.75,
-      threshold_FALSE: 0.25,
-    },
-    evidence_graph: {
-      nodes: [
-        { id: 'nejm.org', tier: 1, stance: 'SUPPORTING', score: 0.88 },
-        { id: 'thelancet.com', tier: 1, stance: 'CONTRADICTING', score: 0.85 },
-        { id: 'health.harvard.edu', tier: 2, stance: 'SUPPORTING', score: 0.74 },
-        { id: 'bmj.com', tier: 1, stance: 'CONTRADICTING', score: 0.80 },
-      ],
-      edges: [
-        { source: 'nejm.org', target: 'thelancet.com', claim_overlap: 0.62 },
-        { source: 'thelancet.com', target: 'bmj.com', claim_overlap: 0.70 },
-      ]
-    },
-    mutation_chain: []
-  },
-
-  MISLEADING: {
-    verdict: 'MISLEADING',
-    confidence: 0.73,
-    claim_type: 'political',
-    claim_text: 'Government secretly tracking citizens via vaccine',
-    explanation: 'While governments have implemented COVID-19 vaccination tracking for public health purposes, the claim that this constitutes secret surveillance is misleading. No credible evidence supports microchip implantation or covert tracking technology in vaccines.',
-    llm_provider: 'ollama',
-    processing_ms: 6300,
-    cached: false,
-    early_exit: false,
-    support_bar: { support_pct: 21, contradict_pct: 79 },
-    is_mutation: true,
-    mutation_similarity: 0.78,
-    mutation_original: 'COVID vaccine has microchips',
-    adversarial: false,
-    verdict_tags: ['Temporal mismatch', 'Context missing', 'Mutation variant'],
-    sources: [
-      { name: 'Reuters', domain: 'reuters.com', tier: 1, credibility: 0.93, stance: 'CONTRADICTING', date: 'Jan 2024', shift: 0 },
-      { name: 'AP News', domain: 'apnews.com', tier: 1, credibility: 0.95, stance: 'CONTRADICTING', date: 'Dec 2023', shift: +0.01 },
-      { name: 'Snopes', domain: 'snopes.com', tier: 2, credibility: 0.80, stance: 'CONTRADICTING', date: 'Nov 2023', shift: 0 },
-    ],
-    sub_claims: [
-      { text: 'Governments track vaccination status', verdict: 'TRUE' },
-      { text: 'Vaccines contain tracking microchips', verdict: 'FALSE' },
-      { text: 'Tracking is secret/covert', verdict: 'FALSE' },
-    ],
-    trace: {
-      support_ratio: 0.210,
-      total_evidence_items: 9,
-      tier1_sources_found: 2,
-      temporal_mismatch: true,
-      echo_chamber_penalty: false,
-      early_exit_triggered: false,
-      event_date: '2021-03-01',
-      utterance_date: '2024-01-10',
-      confidence_raw: 0.78,
-      confidence_final: 0.73,
-      claim_type: 'political',
-      threshold_TRUE: 0.75,
-      threshold_FALSE: 0.25,
-    },
-    evidence_graph: {
-      nodes: [
-        { id: 'reuters.com', tier: 1, stance: 'CONTRADICTING', score: 0.85 },
-        { id: 'apnews.com', tier: 1, stance: 'CONTRADICTING', score: 0.82 },
-        { id: 'snopes.com', tier: 2, stance: 'CONTRADICTING', score: 0.67 },
-      ],
-      edges: [
-        { source: 'reuters.com', target: 'apnews.com', claim_overlap: 0.73 },
-      ]
-    },
-    mutation_chain: [
-      { text: 'COVID vaccine has microchips', similarity: 0.78, verdict: 'FALSE', date: '2021-01-15' },
-    ]
-  },
-
-  UNVERIFIED: {
-    verdict: 'UNVERIFIED',
-    confidence: 0.0,
-    claim_type: 'breaking_news',
-    claim_text: 'Parliament dissolves unexpectedly amid political crisis',
-    explanation: 'Insufficient credible coverage found at verification time. Only 1 source found, below the minimum threshold of 3 required for a definitive verdict. This breaking news story may develop further.',
-    llm_provider: 'rule_based',
-    processing_ms: 2100,
-    cached: false,
-    early_exit: false,
-    support_bar: null,
-    is_mutation: false,
-    adversarial: false,
-    verdict_tags: ['Insufficient sources', 'Breaking news', 'Check back later'],
-    sources: [
-      { name: 'Unknown Source', domain: 'localblog.net', tier: 4, credibility: 0.31, stance: 'SUPPORTING', date: 'Today', shift: 0 },
-    ],
-    sub_claims: [],
-    trace: {
-      support_ratio: 0,
-      total_evidence_items: 0,
-      tier1_sources_found: 0,
-      temporal_mismatch: false,
-      echo_chamber_penalty: false,
-      early_exit_triggered: false,
-      event_date: 'today',
-      utterance_date: 'today',
-      confidence_raw: 0,
-      confidence_final: 0,
-      claim_type: 'breaking_news',
-      threshold_TRUE: 0.70,
-      threshold_FALSE: 0.30,
-    },
-    evidence_graph: { nodes: [], edges: [] },
-    mutation_chain: []
-  }
-};
 
 /* ─────────────────────────────────────────── */
 /*  VIEW SWITCHING                             */
@@ -2078,6 +1763,8 @@ function switchView(view) {
   } else if (view === 'dashboard') {
     document.getElementById('dashboardView').style.display = 'block';
     document.querySelectorAll('.nav-btn')[1].classList.add('active');
+    // Auto-load live metrics whenever the dashboard tab is opened
+    loadMetrics();
   }
 }
 
@@ -2119,75 +1806,133 @@ function switchTab(tab) {
 }
 
 /* ─────────────────────────────────────────── */
-/*  VERIFICATION SIMULATION                    */
+/*  VERIFICATION  — real backend call          */
 /* ─────────────────────────────────────────── */
-function startVerification() {
+
+// Animated progress ticker while we wait for the backend response.
+// Returns a { stop } handle so the caller can halt the animation.
+function _startProgressAnimation() {
+  const stages = [
+    { stage: 'parsing',    progress: 12,  msg: 'Extracting entities & claim type…', dot: 'parsing'    },
+    { stage: 'searching',  progress: 32,  msg: 'Querying 10 OSINT sources…',        dot: 'searching'  },
+    { stage: 'scoring',    progress: 58,  msg: 'Running BART-MNLI stance scoring…', dot: 'scoring'    },
+    { stage: 'explaining', progress: 80,  msg: 'Generating explanation via LLM…',   dot: 'explaining' },
+  ];
+  let stageIdx = 0;
+  let stopped = false;
+
+  ['parsing','searching','scoring','explaining','complete'].forEach(s => {
+    const d = document.getElementById('dot-' + s);
+    if (d) d.classList.remove('done', 'active');
+  });
+
+  function tick() {
+    if (stopped) return;
+    if (stageIdx >= stages.length) return;
+    const s = stages[stageIdx];
+    document.getElementById('stageText').innerHTML =
+      capitalise(s.stage) + '… <span>' + s.msg + '</span>';
+    document.getElementById('progressFill').style.width = s.progress + '%';
+    const dot = document.getElementById('dot-' + s.dot);
+    if (dot) dot.classList.add('active');
+    if (stageIdx > 0) {
+      const prev = document.getElementById('dot-' + stages[stageIdx - 1].dot);
+      if (prev) { prev.classList.remove('active'); prev.classList.add('done'); }
+    }
+    stageIdx++;
+    // Advance roughly every 1.2 s so a 5-10 s request looks animated throughout
+    setTimeout(tick, 1200);
+  }
+  tick();
+
+  return {
+    stop() { stopped = true; },
+    complete() {
+      stopped = true;
+      // Mark all dots done, fill bar to 100 %
+      ['parsing','searching','scoring','explaining'].forEach(s => {
+        const d = document.getElementById('dot-' + s);
+        if (d) { d.classList.remove('active'); d.classList.add('done'); }
+      });
+      document.getElementById('stageText').innerHTML = 'Complete… <span>Verdict ready.</span>';
+      document.getElementById('progressFill').style.width = '100%';
+      const last = document.getElementById('dot-complete');
+      if (last) { last.classList.add('done'); }
+    }
+  };
+}
+
+async function startVerification() {
   const claimText = document.getElementById('claimInput').value.trim();
   if (!claimText) return;
 
+  // Reset UI
   document.getElementById('verifyBtn').disabled = true;
   document.getElementById('killerScreen').classList.remove('visible');
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('progressSection').classList.add('visible');
 
-  // Reset dots
-  ['parsing','searching','scoring','explaining','complete'].forEach(s => {
-    const d = document.getElementById('dot-'+s);
-    d.classList.remove('done','active');
-  });
+  const anim = _startProgressAnimation();
 
-  const stages = [
-    { stage: 'parsing',    progress: 15,  msg: 'Extracting entities & claim type…', dot: 'parsing',    delay: 600 },
-    { stage: 'searching',  progress: 35,  msg: 'Querying 10 sources in parallel…',  dot: 'searching',  delay: 1200 },
-    { stage: 'searching',  progress: 55,  msg: 'Running BART-MNLI batched scoring…', dot: 'scoring',   delay: 1000 },
-    { stage: 'explaining', progress: 80,  msg: 'Generating explanation (Ollama)…',   dot: 'explaining', delay: 1200 },
-    { stage: 'complete',   progress: 100, msg: 'Verdict ready.',                     dot: 'complete',   delay: 600 },
-  ];
+  try {
+    // ── FIX: real POST to backend ──────────────────────────────────────────
+    // Content-Type: application/json  →  avoids HTTP 422 / 415 from FastAPI
+    // claim_type: selectedType        →  "auto" is sent as-is; backend normalises
+    const response = await fetch(BACKEND_URL + '/verify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        claim: claimText,
+        claim_type: selectedType === 'auto' ? 'general' : selectedType,
+        input_type: 'text',
+      }),
+    });
 
-  let elapsed = 0;
-  stages.forEach((s, i) => {
-    elapsed += s.delay;
+    if (!response.ok) {
+      // Attempt to parse a FastAPI error detail for a better message
+      let detail = `HTTP ${response.status}`;
+      try {
+        const errJson = await response.json();
+        detail = errJson.detail || detail;
+      } catch (_) { /* ignore */ }
+      throw new Error(detail);
+    }
+
+    const report = await response.json();
+
+    anim.complete();
     setTimeout(() => {
-      document.getElementById('stageText').innerHTML = capitalise(s.stage) + '… <span>' + s.msg + '</span>';
-      document.getElementById('progressFill').style.width = s.progress + '%';
+      document.getElementById('progressSection').classList.remove('visible');
+      document.getElementById('verifyBtn').disabled = false;
+      // Backend returns claim_text; fall back to what the user typed
+      renderReport(report, report.claim_text || claimText);
+    }, 400);
 
-      // update dots
-      if (i > 0) {
-        const prevDot = document.getElementById('dot-' + stages[i-1].dot);
-        if (prevDot) { prevDot.classList.remove('active'); prevDot.classList.add('done'); }
-      }
-      const dot = document.getElementById('dot-' + s.dot);
-      if (dot) dot.classList.add('active');
+  } catch (err) {
+    anim.stop();
+    document.getElementById('progressSection').classList.remove('visible');
+    document.getElementById('verifyBtn').disabled = false;
 
-      if (s.stage === 'complete') {
-        setTimeout(() => {
-          dot.classList.remove('active');
-          dot.classList.add('done');
-          document.getElementById('progressSection').classList.remove('visible');
-          document.getElementById('verifyBtn').disabled = false;
+    // ── Error diagnosis helper ─────────────────────────────────────────────
+    let hint = '';
+    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('ERR_CONNECTION_REFUSED')) {
+      hint = '\n\nIs the backend running?\n  cd backend && uvicorn main:app --reload --port 8000';
+    } else if (err.message.includes('CORS') || err.message.includes('blocked')) {
+      hint = '\n\nCORS error — the backend may not be whitelisting this origin. Check main.py CORS config.';
+    }
 
-          // Pick a demo verdict to show based on text keywords or random
-          let pick = 'FALSE';
-          const cl = claimText.toLowerCase();
-          if (cl.includes('true') || cl.includes('who') || cl.includes('mpox')) pick = 'TRUE';
-          else if (cl.includes('conflict') || cl.includes('coffee') || cl.includes('study')) pick = 'CONFLICTING';
-          else if (cl.includes('mislead') || cl.includes('vaccin') || cl.includes('track')) pick = 'MISLEADING';
-          else if (cl.includes('unverif') || cl.includes('breaking') || cl.includes('parliament')) pick = 'UNVERIFIED';
-
-          renderReport(demoReports[pick], claimText);
-        }, 400);
-      }
-    }, elapsed);
-  });
+    alert('Verification failed: ' + err.message + hint);
+    document.getElementById('emptyState').style.display = 'block';
+  }
 }
 
 function loadDemo(verdict) {
-  switchView('verify');
-  document.getElementById('emptyState').style.display = 'none';
-  const report = demoReports[verdict];
-  document.getElementById('claimInput').value = report.claim_text;
-  autoResize(document.getElementById('claimInput'));
-  renderReport(report, report.claim_text);
+  // Demo data removed — sidebar now loads real history from /history API.
+  // This stub remains to avoid JS errors from any cached HTML.
+  alert('Demo data has been removed. Use the Verify tab to check real claims, or wait for the history sidebar to load from the backend.');
 }
 
 function capitalise(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -2234,7 +1979,7 @@ function renderReport(report, claimText) {
   if (report.is_mutation && currentProfile !== 'general') {
     document.getElementById('mutationAlert').style.display = 'flex';
     document.getElementById('mutationAlert').querySelector('.mutation-alert-text').innerHTML =
-      `<strong>Mutation Detected</strong>This is a variant of a known claim (similarity: ${report.mutation_similarity})`;
+      `<strong>Mutation Detected</strong>This is a variant of a known claim (similarity: ${(report.mutation_similarity || (report.mutation_chain && report.mutation_chain[0] && report.mutation_chain[0].similarity) || "?").toFixed ? (report.mutation_similarity || (report.mutation_chain && report.mutation_chain[0] && report.mutation_chain[0].similarity) || "?") : (report.mutation_similarity || "?")})`;
   } else {
     document.getElementById('mutationAlert').style.display = 'none';
   }
@@ -2567,27 +2312,57 @@ function loadImageFile(file) {
   reader.readAsDataURL(file);
 }
 
-function simulateOCR(filename, dataUrl) {
+async function simulateOCR(filename, dataUrl) {
   const ocrWrap = document.getElementById('imagePreviewOcr');
   const ocrText = document.getElementById('imageOcrText');
 
-  // Show a loading state
   ocrWrap.style.display = 'block';
-  ocrText.textContent = 'Extracting text from image…';
+  ocrText.textContent = 'Extracting text from image via backend…';
 
-  // Simulate a brief processing delay, then inject text into claim input
-  setTimeout(() => {
-    const mockExtracted = 'Text extracted from ' + filename.replace(/\.[^.]+$/, '') +
-      ' — edit or replace with the claim you want to verify.';
-    ocrText.textContent = mockExtracted;
+  try {
+    // Send the image as base64 to the real /verify endpoint.
+    // The backend image_engine will OCR it and return extracted claim text.
+    const response = await fetch(BACKEND_URL + '/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        claim: '',
+        input_type: 'image',
+        claim_type: selectedType === 'auto' ? 'general' : selectedType,
+        image_base64: dataUrl,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
 
-    // Pre-fill claim input only if it is empty
+    if (response.ok) {
+      const result = await response.json();
+      // Backend returns claim_text (the extracted + verified claim)
+      const extracted = result.claim_text || result.claim || '';
+      ocrText.textContent = extracted || '(No text extracted from image)';
+      const claimInput = document.getElementById('claimInput');
+      if (!claimInput.value.trim() && extracted) {
+        claimInput.value = extracted;
+        autoResize(claimInput);
+      }
+      // If the backend already verified it, show the result
+      if (result.verdict) {
+        document.getElementById('progressSection').classList.remove('visible');
+        renderReport(result, result.claim_text || extracted);
+      }
+    } else {
+      ocrText.textContent = 'Image extraction failed — enter claim text manually.';
+    }
+  } catch (e) {
+    // Backend unreachable — fall back gracefully
+    const fallback = 'Image from ' + filename.replace(/\.[^.]+$/, '') +
+      ' — describe the claim shown in the image above.';
+    ocrText.textContent = fallback;
     const claimInput = document.getElementById('claimInput');
     if (!claimInput.value.trim()) {
-      claimInput.value = mockExtracted;
+      claimInput.value = fallback;
       autoResize(claimInput);
     }
-  }, 900);
+  }
 }
 
 function removeImage() {
@@ -2615,8 +2390,189 @@ document.getElementById('claimInput').addEventListener('keydown', e => {
   }
 });
 
-/* init */
+/* ─────────────────────────────────────────── */
+/*  HISTORY  — GET /history                    */
+/* ─────────────────────────────────────────── */
+async function loadHistory() {
+  const container = document.getElementById('sidebarHistory');
+  if (!container) return;
+  try {
+    const r = await fetch(BACKEND_URL + '/history', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const items = (data.history || []).slice(0, 8);
+    if (!items.length) {
+      container.innerHTML = '<div style="font-size:12px;color:var(--gray-400);padding:8px 0;">No history yet. Verify a claim to get started.</div>';
+      return;
+    }
+    const verdictPillColors = {
+      TRUE: 'v-TRUE', FALSE: 'v-FALSE', MISLEADING: 'v-MISLEADING',
+      CONFLICTING: 'v-CONFLICTING', UNVERIFIED: 'v-UNVERIFIED'
+    };
+    container.innerHTML = items.map(item => {
+      const verdict = (item.verdict || 'UNVERIFIED').toUpperCase();
+      const pillClass = verdictPillColors[verdict] || 'v-UNVERIFIED';
+      const claim = (item.claim || '').slice(0, 60) + ((item.claim || '').length > 60 ? '…' : '');
+      const ts = item.timestamp || '';
+      return `<div class="history-item" style="cursor:default;">
+        <div class="history-claim">${claim}</div>
+        <div class="history-meta">
+          <span class="verdict-pill ${pillClass}">${verdict}</span>
+          <span class="history-time">${ts}</span>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--gray-400);padding:8px 0;">Could not load history (backend offline?).</div>';
+    console.warn('[OSINTVerify] /history failed:', e.message);
+  }
+}
+
+/* ─────────────────────────────────────────── */
+/*  METRICS  — GET /v1/metrics                 */
+/* ─────────────────────────────────────────── */
+async function loadMetrics() {
+  // ── Fetch metrics ──────────────────────────
+  try {
+    const r = await fetch(BACKEND_URL + '/v1/metrics', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const m = await r.json();
+
+    // Metric cards
+    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setTxt('dashTotalReports', m.total_reports ?? '—');
+    setTxt('dashRedisStatus', m.redis_connected ? '✅ Online' : '❌ Offline');
+    setTxt('dashDbStatus',    m.db_connected    ? '✅ Online' : '❌ Offline');
+    setTxt('dashVersion',     m.version || '—');
+    setTxt('dashOfflineMode', m.offline_mode ? 'Yes' : 'No');
+
+    // Verdict distribution bars
+    const dist = m.verdict_distribution || {};
+    const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+    const verdictColors = {
+      TRUE: 'var(--green)', FALSE: 'var(--red)',
+      MISLEADING: 'var(--amber)', CONFLICTING: 'var(--orange)', UNVERIFIED: 'var(--slate)'
+    };
+    const distEl = document.getElementById('dashVerdictDist');
+    if (distEl) {
+      if (!Object.keys(dist).length) {
+        distEl.innerHTML = '<div style="font-size:12px;color:var(--gray-400);">No reports yet.</div>';
+      } else {
+        distEl.innerHTML = Object.entries(dist).map(([verdict, count]) => {
+          const pct = Math.round((count / total) * 100);
+          const color = verdictColors[verdict] || 'var(--accent)';
+          return `<div class="bar-row">
+            <div class="bar-label" style="font-size:11px;">${verdict.slice(0,7)}</div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color};"></div></div>
+            <div class="bar-pct">${count}</div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    // Circuit breakers
+    const breakers = m.circuit_breakers || {};
+    const cbEl = document.getElementById('dashCircuitBreakers');
+    if (cbEl) {
+      if (!Object.keys(breakers).length) {
+        cbEl.innerHTML = '<div style="font-size:12px;color:var(--gray-400);">No circuit breaker data.</div>';
+      } else {
+        cbEl.innerHTML = Object.entries(breakers).map(([name, state]) => {
+          const isOpen = (state === 'OPEN' || state === true || (typeof state === 'object' && state.state === 'OPEN'));
+          const label = typeof state === 'string' ? state : (isOpen ? 'OPEN' : 'CLOSED');
+          return `<div class="trace-item">
+            <div class="trace-key">${name}</div>
+            <div class="trace-value trace-flag">
+              <div class="flag-dot ${isOpen ? 'flag-on' : 'flag-off'}"></div> ${label}
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+  } catch (e) {
+    console.warn('[OSINTVerify] /v1/metrics failed:', e.message);
+    const distEl = document.getElementById('dashVerdictDist');
+    if (distEl) distEl.innerHTML = '<div style="font-size:12px;color:var(--gray-400);">Could not load metrics (backend offline?).</div>';
+  }
+
+  // ── Fetch history for dashboard table ─────
+  try {
+    const r2 = await fetch(BACKEND_URL + '/history', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r2.ok) throw new Error('HTTP ' + r2.status);
+    const data = await r2.json();
+    const rows = (data.history || []).slice(0, 10);
+    const tableEl = document.getElementById('dashHistoryTable');
+    if (tableEl) {
+      if (!rows.length) {
+        tableEl.innerHTML = '<div style="font-size:12px;color:var(--gray-400);">No verifications yet.</div>';
+      } else {
+        const verdictColors = {
+          TRUE: 'var(--green)', FALSE: 'var(--red)',
+          MISLEADING: 'var(--amber)', CONFLICTING: 'var(--orange)', UNVERIFIED: 'var(--slate)'
+        };
+        tableEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="border-bottom:2px solid var(--gray-200);">
+              <th style="text-align:left;padding:8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Claim</th>
+              <th style="text-align:left;padding:8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Verdict</th>
+              <th style="text-align:left;padding:8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Time</th>
+            </tr>
+          </thead>
+          <tbody>${rows.map(row => {
+            const v = (row.verdict || 'UNVERIFIED').toUpperCase();
+            const color = verdictColors[v] || 'var(--slate)';
+            return `<tr style="border-bottom:1px solid var(--gray-100);">
+              <td style="padding:8px 6px;color:var(--gray-800);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(row.claim || '').slice(0, 80)}</td>
+              <td style="padding:8px 6px;"><span style="font-weight:700;color:${color};">${v}</span></td>
+              <td style="padding:8px 6px;color:var(--gray-400);font-size:12px;white-space:nowrap;">${row.timestamp || ''}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>`;
+      }
+    }
+  } catch (e) {
+    console.warn('[OSINTVerify] /history (dashboard) failed:', e.message);
+  }
+}
+
+/* ─────────────────────────────────────────── */
+/*  INIT                                       */
+/* ─────────────────────────────────────────── */
 document.getElementById('emptyState').style.display = 'block';
+
+// Ping backend on load; also pre-fetch sidebar history
+(async function init() {
+  try {
+    const r = await fetch(BACKEND_URL + '/health', {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      console.info('[OSINTVerify] Backend healthy:', data.version, '| DB:', data.db, '| Redis:', data.redis);
+    } else {
+      console.warn('[OSINTVerify] Backend /health returned', r.status);
+    }
+  } catch (e) {
+    console.warn('[OSINTVerify] Backend unreachable at', BACKEND_URL,
+      '— start with: uvicorn main:app --reload --port 8000');
+  }
+  // Load sidebar history regardless of health check result
+  loadHistory();
+})();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
