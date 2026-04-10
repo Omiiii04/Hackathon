@@ -3,7 +3,6 @@ venv
 __pycache__
 *.pyc
 models
-testing
 frontend/dist
 frontend/node_modules
 node_modules/
