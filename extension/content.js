@@ -1,6 +1,5 @@
 // content/content.js
-// OSINT Verifier — Content Script
-// Injects the verification side-panel into any webpage
+
 
 (function () {
   if (window.__osintInjected) return;
@@ -22,8 +21,6 @@
     if (msg.type === "WS_CLOSE")   { /* pipeline finished */ }
   });
 
-  // BUG FIX: Poll session storage for a pending payload that may have been
-  // stored before this content script was ready to receive the message.
   // This is the fallback for the race condition between injection and messaging.
   (async function pollPending() {
     try {
@@ -53,8 +50,6 @@
 
     panelEl.querySelector("#osint-close").addEventListener("click", hidePanel);
 
-    // BUG FIX: Resize handle must be a sibling of #osint-panel-inner, not
-    // appended after the fact to panelEl (which messed up flex layout).
     // It is now declared directly in the HTML template below.
     initResize();
 
@@ -70,7 +65,7 @@
     setSection("osint-result-section",   false);
     setSection("osint-error-section",    false);
 
-    // Reset progress bar and label
+    // Reseting progress bar and label
     const bar = panelEl?.querySelector("#osint-progress-bar");
     const lbl = panelEl?.querySelector("#osint-stage-label");
     if (bar) bar.style.width = "0%";
@@ -467,8 +462,6 @@
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   // ─── Resize Handle ────────────────────────────────────────────────────────────
-  // BUG FIX: Handle is now declared in HTML (above panel-inner) so it sits as
-  // an absolutely-positioned child of the panel correctly.
   function initResize() {
     const handle = panelEl.querySelector("#osint-resize-handle");
     if (!handle) return;

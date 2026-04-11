@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════
-   OSINT Verify – Premium Dark Extension UI
+   OSINT Engine 
    ═══════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -53,7 +53,7 @@ body {
     position: relative;
 }
 
-/* Subtle gradient blob in background */
+/* Subtle gradient in background */
 .container::before {
     content: '';
     position: fixed;
@@ -207,7 +207,7 @@ textarea:focus {
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
-/* ── Image Upload Area ──────────────────────── */
+/* ── Image Uploading area ──────────────────────── */
 .image-upload-area {
     border: 1.5px dashed var(--border);
     border-radius: var(--radius);

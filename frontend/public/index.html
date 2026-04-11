@@ -1323,6 +1323,46 @@
   }
   .report-success-toast.visible { display: flex; animation: fadeIn 0.3s ease; }
 
+  /* ── VERIFICATION TOAST ── */
+  #verifyToast {
+    position: fixed;
+    top: 72px;
+    right: 24px;
+    z-index: 9999;
+    min-width: 260px;
+    max-width: 360px;
+    background: var(--ink);
+    color: white;
+    border-radius: 12px;
+    padding: 14px 18px;
+    font-size: 13.5px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    transform: translateX(120%);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  #verifyToast.show { transform: translateX(0); }
+  #verifyToast.toast-loading { background: var(--ink); }
+  #verifyToast.toast-true    { background: #15803d; }
+  #verifyToast.toast-false   { background: #991b1b; }
+  #verifyToast.toast-misleading { background: #92400e; }
+  #verifyToast.toast-conflicting { background: #9a3412; }
+  #verifyToast.toast-unverified  { background: #374151; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .toast-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
   /* scrollbar */
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -1342,15 +1382,24 @@
 </head>
 <body>
 
+<!-- Verification toast notification -->
+<div id="verifyToast" class="toast-loading">
+  <div class="toast-spinner" id="toastSpinner"></div>
+  <span id="toastMsg">Analysing claim…</span>
+</div>
+
 <!-- ── HEADER ── -->
 <header>
   <div class="logo">
     <div class="logo-icon">🔍</div>
-    <div class="logo-text">OSINT<span>Verify</span></div>
+    <div class="logo-text">OSINT  <span>Engine</span></div>
   </div>
   <nav>
     <button class="nav-btn active" onclick="switchView('verify')">Verify</button>
     <button class="nav-btn" onclick="switchView('dashboard')">Dashboard</button>
+    <button class="nav-btn" onclick="switchView('metrics')">System Metrics</button>
+    <button class="nav-btn" onclick="switchView('mutation-chains')">Mutation Chains</button>
+    <button class="nav-btn" onclick="switchView('source-credibility')">Source Credibility</button>
     <button class="nav-btn" onclick="switchView('history')">History</button>
     <div class="profile-badge" onclick="cycleProfile()">
       <div class="profile-dot"></div>
@@ -1375,10 +1424,10 @@
       <div class="sidebar-item" onclick="switchView('metrics')">
         <span class="icon">📈</span> System Metrics
       </div>
-      <div class="sidebar-item">
+      <div class="sidebar-item" onclick="switchView('mutation-chains')">
         <span class="icon">🔗</span> Mutation Chains
       </div>
-      <div class="sidebar-item">
+      <div class="sidebar-item" onclick="switchView('source-credibility')">
         <span class="icon">🌐</span> Source Credibility
       </div>
     </div>
@@ -1667,6 +1716,59 @@
       </div>
     </div>
 
+    <!-- ── SYSTEM METRICS VIEW ── -->
+    <div id="metricsView" style="display:none">
+      <div class="search-heading" style="margin-bottom:1.5rem;">System Metrics
+        <button onclick="loadSystemMetrics()" style="margin-left:12px;font-size:12px;padding:4px 12px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;color:var(--gray-600);">↻ Refresh</button>
+      </div>
+      <div class="metric-grid" style="margin-bottom:1.5rem;" id="sysMetricGrid">
+        <div class="metric-card"><span class="metric-value" id="smTotalReports">—</span><div class="metric-label">Total Reports</div></div>
+        <div class="metric-card"><span class="metric-value" id="smRedisStatus">—</span><div class="metric-label">Redis Cache</div></div>
+        <div class="metric-card"><span class="metric-value" id="smDbStatus">—</span><div class="metric-label">Database</div></div>
+        <div class="metric-card"><span class="metric-value" id="smVersion">—</span><div class="metric-label">API Version</div></div>
+        <div class="metric-card"><span class="metric-value" id="smOfflineMode">—</span><div class="metric-label">Offline Mode</div></div>
+        <div class="metric-card"><span class="metric-value" id="smUptime">—</span><div class="metric-label">Uptime</div></div>
+      </div>
+      <div class="trace-section">
+        <div class="section-title">Circuit Breaker Status</div>
+        <div class="trace-grid" id="smCircuitBreakers"><div style="font-size:12px;color:var(--gray-400);">Loading…</div></div>
+      </div>
+      <div class="support-bar-section" style="margin-top:1.5rem;">
+        <div class="section-title">Verdict Distribution</div>
+        <div id="smVerdictDist"><div style="font-size:12px;color:var(--gray-400);">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ── MUTATION CHAINS VIEW ── -->
+    <div id="mutationChainsView" style="display:none">
+      <div class="search-heading" style="margin-bottom:1.5rem;">Mutation Chains
+        <button onclick="loadMutationChains()" style="margin-left:12px;font-size:12px;padding:4px 12px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;color:var(--gray-600);">↻ Refresh</button>
+      </div>
+      <div id="mutationChainsContent">
+        <div style="font-size:12px;color:var(--gray-400);">Loading mutation chains…</div>
+      </div>
+    </div>
+
+    <!-- ── SOURCE CREDIBILITY VIEW ── -->
+    <div id="sourceCredibilityView" style="display:none">
+      <div class="search-heading" style="margin-bottom:1.5rem;">Source Credibility
+        <button onclick="loadSourceCredibility()" style="margin-left:12px;font-size:12px;padding:4px 12px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;color:var(--gray-600);">↻ Refresh</button>
+      </div>
+      <div id="sourceCredibilityContent">
+        <div style="font-size:12px;color:var(--gray-400);">Loading source credibility data…</div>
+      </div>
+    </div>
+
+    <!-- ── HISTORY VIEW ── -->
+    <div id="historyView" style="display:none">
+      <div class="search-heading" style="margin-bottom:1.5rem;">Verification History
+        <button onclick="loadHistory(); loadHistoryView();" style="margin-left:12px;font-size:12px;padding:4px 12px;border:1px solid var(--gray-200);border-radius:6px;background:var(--white);cursor:pointer;color:var(--gray-600);">↻ Refresh</button>
+      </div>
+      <div id="historyViewContent">
+        <div style="font-size:12px;color:var(--gray-400);">Loading history…</div>
+      </div>
+    </div>
+
   </main>
 
   <!-- RIGHT PANEL -->
@@ -1711,8 +1813,8 @@
       <div class="section-title" style="margin-bottom:12px;">Platform Info</div>
       <div class="trace-grid" style="margin-bottom:1rem;">
         <div class="trace-item"><div class="trace-key">Version</div><div class="trace-value">v5.2.0</div></div>
-        <div class="trace-item"><div class="trace-key">LLM</div><div class="trace-value">Ollama</div></div>
-        <div class="trace-item"><div class="trace-key">Model</div><div class="trace-value">Qwen2.5 3B</div></div>
+        <div class="trace-item"><div class="trace-key">LLM</div><div class="trace-value">LM Studio</div></div>
+        <div class="trace-item"><div class="trace-key">Model</div><div class="trace-value">Gemini3 12b </div></div>
         <div class="trace-item"><div class="trace-key">GPU</div><div class="trace-value">RTX 4050</div></div>
       </div>
       <div class="section-title" style="margin-bottom:10px;">Cache Status</div>
@@ -1753,18 +1855,51 @@ const profileLabels = { general: 'General', journalist: 'Journalist', researcher
 /*  VIEW SWITCHING                             */
 /* ─────────────────────────────────────────── */
 function switchView(view) {
+  // Hide all views
+  const allViews = ['verifyView','dashboardView','metricsView','mutationChainsView','sourceCredibilityView','historyView'];
+  allViews.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  // Clear nav + sidebar active states
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('verifyView').style.display = 'none';
-  document.getElementById('dashboardView').style.display = 'none';
+  document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+
+  const navBtns = document.querySelectorAll('.nav-btn');
+  const navMap  = { verify: 0, dashboard: 1, metrics: 2, 'mutation-chains': 3, 'source-credibility': 4, history: 5 };
 
   if (view === 'verify') {
     document.getElementById('verifyView').style.display = 'block';
-    document.querySelectorAll('.nav-btn')[0].classList.add('active');
+    if (navBtns[0]) navBtns[0].classList.add('active');
   } else if (view === 'dashboard') {
     document.getElementById('dashboardView').style.display = 'block';
-    document.querySelectorAll('.nav-btn')[1].classList.add('active');
-    // Auto-load live metrics whenever the dashboard tab is opened
+    if (navBtns[1]) navBtns[1].classList.add('active');
     loadMetrics();
+  } else if (view === 'metrics') {
+    document.getElementById('metricsView').style.display = 'block';
+    if (navBtns[2]) navBtns[2].classList.add('active');
+    loadSystemMetrics();
+  } else if (view === 'mutation-chains') {
+    document.getElementById('mutationChainsView').style.display = 'block';
+    if (navBtns[3]) navBtns[3].classList.add('active');
+    loadMutationChains();
+  } else if (view === 'source-credibility') {
+    document.getElementById('sourceCredibilityView').style.display = 'block';
+    if (navBtns[4]) navBtns[4].classList.add('active');
+    loadSourceCredibility();
+  } else if (view === 'history') {
+    document.getElementById('historyView').style.display = 'block';
+    if (navBtns[5]) navBtns[5].classList.add('active');
+    loadHistory();
+    loadHistoryView();
+  }
+
+  // Sync sidebar active item
+  const sidebarItems = document.querySelectorAll('.sidebar-item');
+  const sidebarMap = { verify: 0, dashboard: 1, metrics: 2, 'mutation-chains': 3, 'source-credibility': 4 };
+  if (view in sidebarMap && sidebarItems[sidebarMap[view]]) {
+    sidebarItems[sidebarMap[view]].classList.add('active');
   }
 }
 
@@ -1872,12 +2007,12 @@ async function startVerification() {
   document.getElementById('emptyState').style.display = 'none';
   document.getElementById('progressSection').classList.add('visible');
 
+  // Show loading toast in navbar area
+  showVerifyToast('loading', null, 'Analysing…');
+
   const anim = _startProgressAnimation();
 
   try {
-    // ── FIX: real POST to backend ──────────────────────────────────────────
-    // Content-Type: application/json  →  avoids HTTP 422 / 415 from FastAPI
-    // claim_type: selectedType        →  "auto" is sent as-is; backend normalises
     const response = await fetch(BACKEND_URL + '/verify', {
       method: 'POST',
       headers: {
@@ -1892,7 +2027,6 @@ async function startVerification() {
     });
 
     if (!response.ok) {
-      // Attempt to parse a FastAPI error detail for a better message
       let detail = `HTTP ${response.status}`;
       try {
         const errJson = await response.json();
@@ -1904,19 +2038,27 @@ async function startVerification() {
     const report = await response.json();
 
     anim.complete();
+
+    // Show verdict in toast
+    const v = (report.verdict || 'UNVERIFIED').toUpperCase();
+    const toastEmojis = { TRUE:'✅', FALSE:'❌', MISLEADING:'⚠️', CONFLICTING:'🔀', UNVERIFIED:'❓' };
+    showVerifyToast(v.toLowerCase(), toastEmojis[v] || '❓', 'Verdict: ' + v, 4000);
+
     setTimeout(() => {
       document.getElementById('progressSection').classList.remove('visible');
       document.getElementById('verifyBtn').disabled = false;
-      // Backend returns claim_text; fall back to what the user typed
       renderReport(report, report.claim_text || claimText);
+      // Refresh history sidebar + history view after verification
+      setTimeout(loadHistory, 600);
+      setTimeout(loadHistoryView, 700);
     }, 400);
 
   } catch (err) {
     anim.stop();
+    hideVerifyToast();
     document.getElementById('progressSection').classList.remove('visible');
     document.getElementById('verifyBtn').disabled = false;
 
-    // ── Error diagnosis helper ─────────────────────────────────────────────
     let hint = '';
     if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('ERR_CONNECTION_REFUSED')) {
       hint = '\n\nIs the backend running?\n  cd backend && uvicorn main:app --reload --port 8000';
@@ -2544,6 +2686,268 @@ async function loadMetrics() {
     }
   } catch (e) {
     console.warn('[OSINTVerify] /history (dashboard) failed:', e.message);
+  }
+}
+
+/* ─────────────────────────────────────────── */
+/*  TOAST HELPERS                              */
+/* ─────────────────────────────────────────── */
+let _toastTimer = null;
+
+function showVerifyToast(type, emoji, msg, autoDismissMs) {
+  const toast = document.getElementById('verifyToast');
+  const spinner = document.getElementById('toastSpinner');
+  const msgEl = document.getElementById('toastMsg');
+
+  // Clear previous timer
+  if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+
+  toast.className = 'toast-' + (type || 'loading');
+  if (type === 'loading') {
+    spinner.style.display = 'block';
+    msgEl.textContent = msg || 'Analysing…';
+  } else {
+    spinner.style.display = 'none';
+    msgEl.textContent = (emoji ? emoji + ' ' : '') + (msg || '');
+  }
+  toast.classList.add('show');
+
+  if (autoDismissMs) {
+    _toastTimer = setTimeout(hideVerifyToast, autoDismissMs);
+  }
+}
+
+function hideVerifyToast() {
+  const toast = document.getElementById('verifyToast');
+  if (toast) toast.classList.remove('show');
+}
+
+/* ─────────────────────────────────────────── */
+/*  SYSTEM METRICS VIEW                        */
+/* ─────────────────────────────────────────── */
+async function loadSystemMetrics() {
+  try {
+    const r = await fetch(BACKEND_URL + '/v1/metrics', {
+      method: 'GET', headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const m = await r.json();
+
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('smTotalReports', m.total_reports ?? '—');
+    set('smRedisStatus',  m.redis_connected ? '✅ Online' : '❌ Offline');
+    set('smDbStatus',     m.db_connected    ? '✅ Online' : '❌ Offline');
+    set('smVersion',      m.version || '—');
+    set('smOfflineMode',  m.offline_mode ? 'Yes' : 'No');
+    set('smUptime',       m.uptime_seconds ? Math.round(m.uptime_seconds / 60) + 'm' : '—');
+
+    // Circuit breakers
+    const breakers = m.circuit_breakers || {};
+    const cbEl = document.getElementById('smCircuitBreakers');
+    if (cbEl) {
+      cbEl.innerHTML = Object.keys(breakers).length === 0
+        ? '<div style="font-size:12px;color:var(--gray-400);">No circuit breaker data.</div>'
+        : Object.entries(breakers).map(([name, state]) => {
+            const isOpen = state === 'OPEN' || state === true || (typeof state === 'object' && state.state === 'OPEN');
+            const label  = typeof state === 'string' ? state : (isOpen ? 'OPEN' : 'CLOSED');
+            return `<div class="trace-item"><div class="trace-key">${name}</div>
+              <div class="trace-value trace-flag">
+                <div class="flag-dot ${isOpen ? 'flag-on' : 'flag-off'}"></div> ${label}
+              </div></div>`;
+          }).join('');
+    }
+
+    // Verdict distribution
+    const dist = m.verdict_distribution || {};
+    const total = Object.values(dist).reduce((a, b) => a + b, 0) || 1;
+    const vc = { TRUE:'var(--green)', FALSE:'var(--red)', MISLEADING:'var(--amber)', CONFLICTING:'var(--orange)', UNVERIFIED:'var(--slate)' };
+    const distEl = document.getElementById('smVerdictDist');
+    if (distEl) {
+      distEl.innerHTML = Object.keys(dist).length === 0
+        ? '<div style="font-size:12px;color:var(--gray-400);">No reports yet.</div>'
+        : Object.entries(dist).map(([v, cnt]) => {
+            const pct   = Math.round((cnt / total) * 100);
+            const color = vc[v] || 'var(--accent)';
+            return `<div class="bar-row">
+              <div class="bar-label" style="font-size:11px;">${v.slice(0,9)}</div>
+              <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color};"></div></div>
+              <div class="bar-pct">${cnt}</div>
+            </div>`;
+          }).join('');
+    }
+  } catch (e) {
+    console.warn('[OSINTVerify] /v1/metrics failed:', e.message);
+    // Fallback to /health
+    try {
+      const h = await fetch(BACKEND_URL + '/health', { signal: AbortSignal.timeout(4000) });
+      if (h.ok) {
+        const hd = await h.json();
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        set('smVersion',   hd.version || '—');
+        set('smDbStatus',  hd.db || '—');
+        set('smRedisStatus', hd.redis || '—');
+        set('smOfflineMode', hd.offline_mode ? 'Yes' : 'No');
+      }
+    } catch (_) { /* ignore */ }
+    const distEl = document.getElementById('smVerdictDist');
+    if (distEl) distEl.innerHTML = '<div style="font-size:12px;color:var(--red);">Backend offline — start with: <code>uvicorn main:app --reload --port 8000</code></div>';
+  }
+}
+
+/* ─────────────────────────────────────────── */
+/*  MUTATION CHAINS VIEW                       */
+/* ─────────────────────────────────────────── */
+async function loadMutationChains() {
+  const container = document.getElementById('mutationChainsContent');
+  if (!container) return;
+  container.innerHTML = '<div style="font-size:12px;color:var(--gray-400);">Loading…</div>';
+
+  let items = [];
+  let source = 'backend';
+
+  try {
+    const r = await fetch(BACKEND_URL + '/v1/history', {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    items = (data.history || []).filter(i => i.is_mutation || (i.mutation_chain && i.mutation_chain.length));
+  } catch (e) {
+    // Fallback: localStorage
+    source = 'local';
+    try {
+      const local = JSON.parse(localStorage.getItem('osint_history') || '[]');
+      items = local.filter(i => i.is_mutation || (i.mutation_chain && i.mutation_chain.length));
+    } catch (_) { items = []; }
+  }
+
+  if (!items.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="es-icon">🔗</div>
+      <div class="es-title">No mutation chains found</div>
+      <div class="es-text">Mutations are detected when a claim is similar to a previously verified one.</div>
+    </div>` + (source === 'local' ? '<div style="font-size:11px;color:var(--amber);text-align:center;margin-top:8px;">⚠ Showing local data — backend offline</div>' : '');
+    return;
+  }
+
+  container.innerHTML = (source === 'local' ? '<div style="font-size:11px;color:var(--amber);margin-bottom:12px;">⚠ Showing local data — backend offline</div>' : '') +
+    items.map(item => {
+      const chain = item.mutation_chain || [];
+      return `<div class="mutation-section" style="margin-bottom:1rem;">
+        <div class="mutation-chain-title">🔄 ${(item.claim_text || item.claim || '').slice(0, 80)}</div>
+        <div style="font-size:11px;color:#9a3412;margin-bottom:8px;">Verdict: ${item.verdict} · Similarity: ${(item.mutation_similarity || '—')}</div>
+        ${chain.map(v => `<div class="mutation-variant">
+          <div class="mutation-variant-text">"${v.text || ''}"</div>
+          <div class="mutation-sim">sim: ${v.similarity} · ${v.verdict} · ${v.date || ''}</div>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+}
+
+/* ─────────────────────────────────────────── */
+/*  SOURCE CREDIBILITY VIEW                    */
+/* ─────────────────────────────────────────── */
+async function loadSourceCredibility() {
+  const container = document.getElementById('sourceCredibilityContent');
+  if (!container) return;
+  container.innerHTML = '<div style="font-size:12px;color:var(--gray-400);">Loading…</div>';
+
+  let sources = [];
+  try {
+    const r = await fetch(BACKEND_URL + '/v1/history', {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    // Aggregate sources from all history items
+    const srcMap = {};
+    (data.history || []).forEach(item => {
+      (item.sources || []).forEach(s => {
+        const key = s.domain || s.name;
+        if (!key) return;
+        if (!srcMap[key]) srcMap[key] = { ...s, count: 0, totalCred: 0 };
+        srcMap[key].count++;
+        srcMap[key].totalCred += (s.credibility || 0);
+      });
+    });
+    sources = Object.values(srcMap).sort((a, b) => b.totalCred / b.count - a.totalCred / a.count);
+  } catch (e) {
+    container.innerHTML = '<div class="empty-state"><div class="es-icon">🌐</div><div class="es-title">Backend offline</div><div class="es-text">Source credibility data is loaded from verification history. Start the backend to see this data.</div></div>';
+    return;
+  }
+
+  if (!sources.length) {
+    container.innerHTML = '<div class="empty-state"><div class="es-icon">🌐</div><div class="es-title">No source data yet</div><div class="es-text">Verify some claims to see source credibility scores here.</div></div>';
+    return;
+  }
+
+  const tierColors = { 1:'t1', 2:'t2', 3:'t3' };
+  const stanceIcons = { SUPPORTING:'🟢', CONTRADICTING:'🔴', NEUTRAL:'⚪' };
+  container.innerHTML = `<div class="sources-section">
+    <div class="section-title">Source Credibility Rankings (${sources.length} sources)</div>
+    ${sources.map(s => `
+      <div class="source-card">
+        <div class="source-favicon">${s.tier === 1 ? '🏛️' : s.tier === 2 ? '📰' : '📄'}</div>
+        <div class="source-info">
+          <div class="source-name">${s.name || s.domain || 'Unknown'}</div>
+          <div class="source-meta">
+            <span class="tier-badge ${tierColors[s.tier] || ''}">T${s.tier || '?'}</span>
+            <span class="source-date">Seen ${s.count}x</span>
+          </div>
+          <div class="credibility-bar-mini">
+            <div class="credibility-fill" style="width:${Math.round((s.totalCred / s.count) * 100)}%"></div>
+          </div>
+        </div>
+        <div style="text-align:right;font-family:'DM Mono',monospace;font-size:12px;color:var(--ink);">
+          ${Math.round((s.totalCred / s.count) * 100)}%
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+/* ─────────────────────────────────────────── */
+/*  HISTORY FULL VIEW                          */
+/* ─────────────────────────────────────────── */
+async function loadHistoryView() {
+  const container = document.getElementById('historyViewContent');
+  if (!container) return;
+  try {
+    const r = await fetch(BACKEND_URL + '/history', {
+      headers: { 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const items = data.history || [];
+    if (!items.length) {
+      container.innerHTML = '<div class="empty-state"><div class="es-icon">📋</div><div class="es-title">No verifications yet</div><div class="es-text">Verify a claim to see it here.</div></div>';
+      return;
+    }
+    const vc = { TRUE:'var(--green)', FALSE:'var(--red)', MISLEADING:'var(--amber)', CONFLICTING:'var(--orange)', UNVERIFIED:'var(--slate)' };
+    container.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <thead><tr style="border-bottom:2px solid var(--gray-200);">
+        <th style="text-align:left;padding:8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Claim</th>
+        <th style="text-align:left;padding:8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Verdict</th>
+        <th style="text-align:left;padding:8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Confidence</th>
+        <th style="text-align:left;padding:8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-400);">Time</th>
+      </tr></thead>
+      <tbody>${items.map(row => {
+        const v = (row.verdict || 'UNVERIFIED').toUpperCase();
+        const color = vc[v] || 'var(--slate)';
+        const confPct = row.confidence ? Math.round(row.confidence * 100) + '%' : '—';
+        return `<tr style="border-bottom:1px solid var(--gray-100);">
+          <td style="padding:8px 6px;color:var(--gray-800);max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(row.claim || row.claim_text || '').slice(0, 100)}</td>
+          <td style="padding:8px 6px;"><span style="font-weight:700;color:${color};">${v}</span></td>
+          <td style="padding:8px 6px;font-family:'DM Mono',monospace;font-size:12px;">${confPct}</td>
+          <td style="padding:8px 6px;color:var(--gray-400);font-size:12px;white-space:nowrap;">${row.timestamp || ''}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  } catch (e) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--gray-400);padding:1rem;">Could not load history (backend offline?).</div>';
   }
 }
 

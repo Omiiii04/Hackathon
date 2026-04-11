@@ -84,23 +84,25 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // ── Auto-fill from context menu ──────────────────────
-    chrome.runtime.sendMessage({ action: 'getClaim' }, (response) => {
-        if (response) {
-            if (response.imageUrl) {
-                // Sent from context menu image click
-                currentImageUrl = response.imageUrl;
-                currentImageBase64 = null;
+    // Auto-fill from context menu — uses GET_PENDING to pick up payload stored by background.js
+    chrome.runtime.sendMessage({ type: 'GET_PENDING' }, (response) => {
+        if (!response) return;
+        if (response.imageUrl || response.type === 'image') {
+            // Sent from context menu image click
+            currentImageUrl = response.imageUrl || response.url || null;
+            currentImageBase64 = null;
+            if (currentImageUrl) {
                 imagePreview.src = currentImageUrl;
                 imagePreview.classList.remove('hidden');
                 imagePlaceholder.classList.add('hidden');
-                modeImageBtn.click(); // switch to image UI
-            } else if (response.claim) {
-                // Sent from context menu text selection
-                claimInput.value = response.claim;
-                charCount.textContent = response.claim.length;
-                modeTextBtn.click();
             }
+            modeImageBtn.click(); // switch to image UI
+        } else if (response.claim || response.type === 'text') {
+            // Sent from context menu text selection
+            const claimVal = response.claim || '';
+            claimInput.value = claimVal;
+            charCount.textContent = claimVal.length;
+            modeTextBtn.click();
         }
     });
 

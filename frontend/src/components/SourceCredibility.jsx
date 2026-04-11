@@ -1,23 +1,7 @@
 import React, { useState } from 'react';
 
-const SOURCES = [
-  { name:'WHO',              domain:'who.int',          tier:1, credibility:0.97, category:'Health',      country:'International', shift:+0.02, notes:'Primary global health authority' },
-  { name:'CDC',              domain:'cdc.gov',          tier:1, credibility:0.96, category:'Health',      country:'USA',           shift:0,     notes:'US public health agency' },
-  { name:'Reuters',          domain:'reuters.com',      tier:1, credibility:0.93, category:'News',        country:'UK',            shift:+0.01, notes:'Wire service, strong editorial standards' },
-  { name:'AP News',          domain:'apnews.com',       tier:1, credibility:0.95, category:'News',        country:'USA',           shift:+0.01, notes:'Non-profit wire service' },
-  { name:'BBC',              domain:'bbc.com',          tier:1, credibility:0.94, category:'News',        country:'UK',            shift:0,     notes:'UK public broadcaster' },
-  { name:'Nature',           domain:'nature.com',       tier:1, credibility:0.98, category:'Science',     country:'International', shift:+0.01, notes:'Peer-reviewed scientific journal' },
-  { name:'PubMed',           domain:'pubmed.ncbi.nlm.nih.gov', tier:1, credibility:0.97, category:'Science', country:'USA',      shift:0,     notes:'NIH biomedical literature index' },
-  { name:'The Guardian',     domain:'guardian.com',     tier:2, credibility:0.82, category:'News',        country:'UK',            shift:-0.01, notes:'Independent news outlet' },
-  { name:'NYT',              domain:'nytimes.com',      tier:2, credibility:0.85, category:'News',        country:'USA',           shift:0,     notes:'Legacy broadsheet' },
-  { name:'Snopes',           domain:'snopes.com',       tier:2, credibility:0.84, category:'Fact-check',  country:'USA',           shift:-0.02, notes:'Dedicated fact-checking site' },
-  { name:'PolitiFact',       domain:'politifact.com',   tier:2, credibility:0.83, category:'Fact-check',  country:'USA',           shift:0,     notes:'Political fact-checking' },
-  { name:'GDELT',            domain:'gdeltproject.org', tier:2, credibility:0.78, category:'Data',        country:'International', shift:+0.01, notes:'Global event database' },
-  { name:'Wikipedia',        domain:'wikipedia.org',    tier:3, credibility:0.72, category:'Reference',   country:'International', shift:+0.01, notes:'Crowd-sourced, use with caution' },
-  { name:'The Daily Mail',   domain:'dailymail.co.uk',  tier:3, credibility:0.45, category:'News',        country:'UK',            shift:-0.03, notes:'Tabloid, low accuracy history' },
-  { name:'InfoWars',         domain:'infowars.com',     tier:4, credibility:0.08, category:'Conspiracy',  country:'USA',           shift:-0.05, notes:'Known misinformation source' },
-  { name:'Unknown Blog',     domain:'healthtruth.net',  tier:4, credibility:0.28, category:'Blog',        country:'Unknown',       shift:-0.03, notes:'Unverified, no editorial oversight' },
-];
+const BACKEND_URL = 'http://localhost:8000';
+
 
 const TIER_INFO = {
   1: { label:'Tier 1 — Authoritative', color:'#15803d', bg:'#dcfce7', desc:'Peer-reviewed or government sources with rigorous editorial standards.' },
@@ -26,7 +10,6 @@ const TIER_INFO = {
   4: { label:'Tier 4 — Unreliable',    color:'#b91c1c', bg:'#fee2e2', desc:'Known for misinformation, conspiracy content, or zero editorial review.' },
 };
 
-const CATEGORIES = ['All', ...Array.from(new Set(SOURCES.map(s => s.category)))];
 
 function CredBar({ score }) {
   const pct = Math.round(score * 100);
@@ -51,12 +34,31 @@ function ShiftBadge({ shift }) {
   );
 }
 
+import { useEffect } from 'react';
+
 export function SourceCredibility() {
+  const [sources, setSources]           = useState([]);
+  const [loading, setLoading]           = useState(true);
   const [selectedTier, setSelectedTier] = useState('All');
   const [selectedCat, setSelectedCat]   = useState('All');
   const [sortBy, setSortBy]             = useState('credibility');
 
-  const filtered = SOURCES
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/v1/source-credibility`, { signal: AbortSignal.timeout(5000) })
+      .then(res => res.json())
+      .then(data => {
+        setSources(data.sources || []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setSources([]);
+        setLoading(false);
+      });
+  }, []);
+
+  const CATEGORIES = ['All', ...Array.from(new Set(sources.map(s => s.category)))];
+
+  const filtered = sources
     .filter(s => (selectedTier === 'All' || String(s.tier) === String(selectedTier)))
     .filter(s => (selectedCat  === 'All' || s.category === selectedCat))
     .sort((a, b) => sortBy === 'credibility' ? b.credibility - a.credibility : a.tier - b.tier);
@@ -153,7 +155,7 @@ export function SourceCredibility() {
       </div>
 
       <div style={{ fontSize:11, color:'var(--gray-400)', textAlign:'center', marginTop:12 }}>
-        {filtered.length} of {SOURCES.length} sources shown · Scores updated weekly via automated fact-check analysis
+        {loading ? 'Loading sources...' : `${filtered.length} of ${sources.length} sources shown · Scores updated weekly via automated fact-check analysis`}
       </div>
     </div>
   );

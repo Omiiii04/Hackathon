@@ -169,11 +169,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 async function handleVerification(payload) {
   try {
-    const isUrl    = payload.type === "url";
-    const body     = isUrl ? { url: payload.url } : { claim: payload.claim };
-    const endpoint = isUrl ? `${API_BASE}/verify/url` : `${API_BASE}/verify/text`;
+    // Unified /verify endpoint — works for both text claims and URLs
+    const isUrl = payload.type === "url";
+    const body = {
+      claim:      isUrl ? (payload.url || "") : (payload.claim || ""),
+      input_type: isUrl ? "url" : "text",
+      claim_type: "general",
+    };
 
-    const resp = await fetch(endpoint, {
+    const resp = await fetch(`${API_BASE}/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
@@ -208,13 +212,14 @@ async function handleImageVerification(payload) {
       imageData     = await blobToBase64(blob);
     }
 
-    const resp = await fetch(`${API_BASE}/verify/image`, {
+    const resp = await fetch(`${API_BASE}/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        claim:        "",
+        input_type:   "image",
+        claim_type:   "general",
         image_base64: imageData,
-        source_url: payload.imageUrl,
-        page_url: payload.pageUrl || ""
       })
     });
 

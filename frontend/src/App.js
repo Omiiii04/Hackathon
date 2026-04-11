@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════
    OSINT Rumor Verification Platform — app.js
-   SRS v5.2.0 · Team Radio Frequency · VIT Code Apex 2.0
+   SRS v5.2.0 · Team Radio Frequency · TSSMSCode Apex 2.0
    ═══════════════════════════════════════════════════════ */
 
 /* ─────────────────────────────────────────── */
@@ -25,7 +25,7 @@ const demoReports = {
     claim_text: '5G towers cause COVID-19 symptoms',
     explanation:
       'Multiple Tier-1 scientific institutions including WHO and CDC have found no causal link between 5G radio frequencies and COVID-19 or its symptoms. The coronavirus is a biological pathogen transmitted person-to-person; electromagnetic waves cannot cause viral infections.',
-    llm_provider: 'ollama',
+    llm_provider: 'LM Studio',
     processing_ms: 5840,
     cached: false,
     early_exit: true,
@@ -90,7 +90,7 @@ const demoReports = {
     claim_text: 'WHO declared mpox a global health emergency',
     explanation:
       'The World Health Organization officially declared mpox (formerly monkeypox) a Public Health Emergency of International Concern in August 2024, citing accelerating spread across multiple continents. This declaration was confirmed by multiple Tier-1 sources including Reuters, AP News, and BBC.',
-    llm_provider: 'ollama',
+    llm_provider: 'LM Studio',
     processing_ms: 4200,
     cached: true,
     early_exit: false,
@@ -203,7 +203,7 @@ const demoReports = {
     claim_text: 'Government secretly tracking citizens via vaccine',
     explanation:
       'While governments have implemented COVID-19 vaccination tracking for public health purposes, the claim that this constitutes secret surveillance is misleading. No credible evidence supports microchip implantation or covert tracking technology in vaccines.',
-    llm_provider: 'ollama',
+    llm_provider: 'LM Studio',
     processing_ms: 6300,
     cached: false,
     early_exit: false,
@@ -368,7 +368,7 @@ function startVerification() {
     { stage: 'parsing',    progress: 15,  msg: 'Extracting entities & claim type…',  dot: 'parsing',    delay: 600  },
     { stage: 'searching',  progress: 35,  msg: 'Querying 10 sources in parallel…',   dot: 'searching',  delay: 1200 },
     { stage: 'searching',  progress: 55,  msg: 'Running BART-MNLI batched scoring…', dot: 'scoring',    delay: 1000 },
-    { stage: 'explaining', progress: 80,  msg: 'Generating explanation (Ollama)…',   dot: 'explaining', delay: 1200 },
+    { stage: 'explaining', progress: 80,  msg: 'Generating explanation (LM Studio)…',   dot: 'explaining', delay: 1200 },
     { stage: 'complete',   progress: 100, msg: 'Verdict ready.',                      dot: 'complete',   delay: 600  },
   ];
 

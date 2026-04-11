@@ -370,7 +370,7 @@ function App() {
         <aside className="right-panel">
           <div className="section-title" style={{ marginBottom: 12 }}>Platform Info</div>
           <div className="trace-grid" style={{ marginBottom: '1rem' }}>
-            {[['Version', 'v5.2.0'], ['LLM', 'Ollama'], ['Model', 'Qwen2.5 3B'], ['GPU', 'RTX 4050']].map(([k, v]) => (
+            {[['Version', 'v5.2.0'], ['LLM', 'LM Studio'], ['Model', 'Qwen2.5 3B'], ['GPU', 'RTX 4050']].map(([k, v]) => (
               <div key={k} className="trace-item">
                 <div className="trace-key">{k}</div>
                 <div className="trace-value">{v}</div>
