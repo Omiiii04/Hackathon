@@ -740,17 +740,30 @@ class VerifyRequestCompat(BaseModel):
 
 
 @app.post("/verify")
+@app.post("/verify/text")
+@app.post("/verify/url")
+@app.post("/verify/image")
 async def verify_compat(body: VerifyRequestCompat):
     """
-    Synchronous /verify shim for the React frontend.
+    Synchronous /verify shim for the React frontend and Chrome Extension.
+    Supports /verify/text, /verify/url, /verify/image for extension compatibility.
     Runs the full pipeline inline (no Celery) and returns the formatted report.
 
-    FIX 5 cont.: Accepts both { claim: "..." } and { text: "..." } JSON bodies.
-    FIX 6: Returns JSON with Content-Type: application/json (FastAPI default).
+    Extension sends: POST /verify/text {claim}, POST /verify/url {url}, POST /verify/image {image_base64, image_url}
     """
     # Resolve claim text — prefer "claim", fall back to "text"
     raw_body = body.dict()
     claim_text = (raw_body.get("claim") or raw_body.get("text") or "").strip()
+
+    # Auto-set input_type from path if not provided
+    if not body.input_type or body.input_type == "text":
+        path_input_type = "text"
+    elif "/url" in __name__ or raw_body.get("url"):
+        path_input_type = "url"
+    else:
+        path_input_type = "image"
+
+    body.input_type = path_input_type
 
     # Build a VerifyRequest for the shared extraction helper
     compat_body = VerifyRequest(
@@ -786,6 +799,7 @@ async def verify_compat(body: VerifyRequestCompat):
             pass
 
     return _format_for_ui(raw, claim, body.claim_type or "general")
+
 
 
 @app.get("/health")

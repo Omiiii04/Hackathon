@@ -2,7 +2,7 @@
 venv
 __pycache__
 *.pyc
-models
+models/bart_mnli
 frontend/dist
 frontend/node_modules
 node_modules/
