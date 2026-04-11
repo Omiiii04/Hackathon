@@ -2,6 +2,11 @@
 backend/models.py
 ------------------
 Core data classes shared across the pipeline.
+
+FIX LOG:
+  - EvidenceItem: added published_at, risk_flags, domain, root_domain,
+    independence_factor, temporal_alignment — all referenced by
+    temporal.py, diversity.py, and runtime.py but previously missing.
 """
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -10,15 +15,23 @@ from typing import List, Optional
 @dataclass
 class EvidenceItem:
     title: str
-    snippet: str                     # text from the source
+    snippet: str                        # text from the source
     url: str
-    source: str                      # "Reuters", "Wikipedia", etc.
-    stance: str = "NEUTRAL"          # SUPPORTING / CONTRADICTING / NEUTRAL
-    credibility: float = 0.40        # 0.0 to 1.0
-    score: float = 0.0               # composite weight in aggregation
-    stance_confidence: float = 0.5   # BART-MNLI confidence for the stance label
-    semantic_similarity: float = 0.5 # MiniLM cosine similarity to claim
-    published_days_ago: int = 30     # recency (default 30 days if unknown)
+    source: str                         # "Reuters", "Wikipedia", etc.
+    stance: str = "NEUTRAL"             # SUPPORTING / CONTRADICTING / NEUTRAL
+    credibility: float = 0.40           # 0.0 to 1.0
+    score: float = 0.0                  # composite weight in aggregation
+    stance_confidence: float = 0.5      # BART-MNLI confidence for the stance label
+    semantic_similarity: float = 0.5    # MiniLM cosine similarity to claim
+    published_days_ago: int = 30        # recency (default 30 days if unknown)
+
+    # --- fields added to fix AttributeError in temporal.py / diversity.py ---
+    published_at: Optional[str] = None  # ISO date string "YYYY-MM-DD", or None
+    risk_flags: List[str] = field(default_factory=list)  # e.g. ["stale_source"]
+    domain: str = ""                    # e.g. "reuters.com"
+    root_domain: str = ""               # e.g. "reuters.com" (registrable root)
+    independence_factor: float = 1.0    # penalises same-domain repetition
+    temporal_alignment: float = 1.0     # 0–1; reduced for pre-dating sources
 
 
 @dataclass
