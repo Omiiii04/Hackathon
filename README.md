@@ -35,61 +35,56 @@ From a beautiful modern React dashboard to a "Right-Click-to-Verify" Chrome Exte
 
 ## 🛠️ Tech Stack Architecture
 
-| Layer                       | Technology                            | Purpose                                                 |
-| :-------------------------- | :------------------------------------ | :------------------------------------------------------ |
-| **Frontend UI**       | React.js, Framer Motion               | Provides a dynamic "Glassmorphism" telemetry dashboard. |
-| **Browser UI**        | Vanilla JS / CSS                      | Chrome Extension side-panel integration.                |
-| **Backend API**       | Python, FastAPI, Pydantic             | Powers strict data schemas and parallel OSINT routing.  |
-| **Text Verification** | PyTorch,`facebook/bart-large-mnli`  | Zero-shot stance classification locally.                |
-| **Vision Extractor**  | LM Studio (Qwen-VL), EasyOCR          | Extracts context natively from dragged images.          |
-| **Synthesizer**       | LM Studio (DeepSeek R1 8B)            | Writes the final deterministic human explanation.       |
-| **Language Bridge**   | `google-translator`, `langdetect` | End-to-end language agnostic routing.                   |
+| Layer                       | Technology                                                                 | Purpose                                                                 |
+|-----------------------------|----------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| **Frontend**                | React 18, Framer Motion                                                    | Glassmorphic dashboard with real-time metrics, history, drag-drop.      |
+| **Chrome Extension**        | Manifest V3, Content Scripts                                               | Right-click text/image → verify popup.                                  |
+| **Backend API**             | FastAPI, Pydantic, Celery+Redis, Uvicorn                                   | Async/sync claim verification (/v1/verify, WS streaming).               |
+| **Database**                | Postgres + pgvector (asyncpg), Redis                                       | Embeddings, history, caching, task queue.                               |
+| **ML Pipeline**             | Transformers (BART-large-MNLI), SentenceTransformers (MiniLM), Torch        | Stance classification, semantic ranking, pgvector embeddings.           |
+| **Vision**                  | EasyOCR, Pillow (LM Studio Qwen-VL/Gemma-3 fallback)                       | Image text extraction/OCR.                                              |
+| **LLM**                     | LM Studio (DeepSeek-R1/Gemini fallback via google-genai)                   | Multilingual explanations, no OpenAI costs.                             |
+| **OSINT Sources**           | DuckDuckGo scraper, Wikipedia, langdetect + deep-translator                | Evidence collection, auto-translation.                                  |
+| **Infra**                   | Docker Compose (Postgres/Redis), .env config                                | One-command local setup.                                                |
 
 ---
 
-## ⚙️ How to Run Locally
+## ⚙️ Quickstart (Docker + Local Setup)
 
-### 1. Boot up LM Studio (Inference Layer)
+### Prerequisites
+- Python 3.10+, Node.js 20+, Docker, LM Studio (free, local LLMs).
+- Git clone: `git clone <repo> && cd Hackathon`
 
-To ensure image-vision and explanation generation runs effectively offline:
-
-1. Open **LM Studio**.
-2. Download a **Vision Model** (e.g. `Qwen-VL 4B` or `Gemma-3-4B`) and a **Reasoning Model** (e.g. `DeepSeek-R1-8B`).
-3. Start the **Local Server** on port `1234`. The FastApi endpoint dynamically queries this network for the correct multimodal capacities!
-
-### 2. Boot the API Layer
-
+### 1. Start Infra (DB + Cache)
 ```bash
-# Navigate to the backend directory
-cd backend
-
-# Activate your virtual environment
-.\venv\Scripts\Activate
-
-# Install dependencies if you haven't natively
-pip install -r requirements.txt
-
-# Start the uvicorn API server
-# NOTE: The server downloads the BART-MNLI weights on the first boot-up!
-uvicorn main:app --reload
+docker compose up -d  # Postgres + Redis
 ```
 
-### 3. Boot the React Dashboard
+### 2. Boot LM Studio (for Vision/LLM)
+1. Download [LM Studio](https://lmstudio.ai/).
+2. Load Vision model (Qwen2-VL-2B / Gemma-3-4B) + Reasoning model (DeepSeek-R1-8B).
+3. Start Local Inference Server → `http://localhost:1234`.
 
+### 3. Backend API
+
+### 3. Backend API
 ```bash
-# Open a new terminal and navigate to the UI directory
+cd backend
+python -m venv venv && venv\Scripts\activate  # Windows
+pip install -r ../requirements.txt
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+API ready at http://localhost:8000/docs (Swagger) / http://localhost:8000/health
+
+### 4. Frontend Dashboard
+```bash
 cd frontend
-
-# Install exact UI dependencies
-npm install
-
-# Start the development server (Defaults to Port 3000)
+npm ci  # Reproducible install
 npm start
 ```
+Open http://localhost:3000 → Drag-drop claims or paste text.
 
-### 4. Load the Chrome Extension
-
-1. Open Google Chrome and traverse to `chrome://extensions/`
-2. Toggle **Developer Mode** ON.
-3. Click "Load unpacked" and select the `VIT_Hackathon/extension/` folder.
-4. Pin it to your browser and right click any text on the internet to test!
+### 5. Chrome Extension
+1. chrome://extensions/ → Developer Mode ON.
+2. "Load unpacked" → select `extension/` folder.
+3. Right-click text/image anywhere → "Verify with OSINT Engine".

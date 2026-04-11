@@ -4,7 +4,7 @@ backend/pipeline/aggregator.py
 Evidence aggregation logic: computes weighted support/contradiction ratios,
 applies early exit rules, and produces an intermediate verdict signal.
 
-Thresholds (from SDD v5.2 + config):
+Thresholds:
   HIGH  = 0.80  → early TRUE signal
   LOW   = 0.20  → early FALSE signal
 """

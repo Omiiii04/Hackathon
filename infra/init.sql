@@ -1,13 +1,7 @@
--- =============================================================================
--- infra/init.sql
 -- Auto-executed by Docker on first container start.
--- This file is idempotent — safe to re-run.
--- =============================================================================
 
--- Enable pgvector extension
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Enable gen_random_uuid()
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- =============================================================================

@@ -1,7 +1,5 @@
 """
 backend/pipeline/verdict.py
------------------------------
-Improved verdict engine: rule-based + probabilistic.
 
 Input:  AggregationResult + evidence list
 Output: (verdict, confidence, algorithm_trace)

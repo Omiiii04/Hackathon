@@ -33,7 +33,7 @@ from services.circuit_breaker import get_breaker, CircuitBreakerOpenError
 logger = logging.getLogger(__name__)
 
 # ── Wikipedia User-Agent (REQUIRED by ToS) ────────────────────────────────────
-_WIKI_UA = settings.wikipedia_user_agent    # "OSINT-Verify/1.0 (omapar0123@gmail.com)"
+_WIKI_UA = settings.wikipedia_user_agent    # "(omapar0123@gmail.com)"
 
 # ── Common browser-like headers for scraping ──────────────────────────────────
 _SCRAPE_HEADERS = {

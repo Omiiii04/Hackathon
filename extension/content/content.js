@@ -1,15 +1,16 @@
 // content/content.js
-
+// OSINT Verifier — Content Script
+// Injects the verification side-panel into any webpage
 
 (function () {
   if (window.__osintInjected) return;
   window.__osintInjected = true;
 
-  // ─── Panel State ─────────────────────────────────────────────────────────────
-  let panelEl       = null;
+  // ─── Panel State ────────────────────────────────────────────────────────────
+  let panelEl = null;
   let currentPayload = null;
 
-  // ─── Message Listener ────────────────────────────────────────────────────────
+  // ─── Listen for messages from background ───────────────────────────────────
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === "OPEN_PANEL") {
       currentPayload = msg.payload;
@@ -21,21 +22,7 @@
     if (msg.type === "WS_CLOSE")   { /* pipeline finished */ }
   });
 
-  // This is the fallback for the race condition between injection and messaging.
-  (async function pollPending() {
-    try {
-      const result = await chrome.runtime.sendMessage({ type: "GET_PENDING" });
-      if (result) {
-        currentPayload = result;
-        showPanel();
-        startVerification(result);
-      }
-    } catch (_) {
-      // Extension context not yet ready — ignore
-    }
-  })();
-
-  // ─── Build Panel DOM ──────────────────────────────────────────────────────────
+  // ─── Build Panel DOM ────────────────────────────────────────────────────────
   function showPanel() {
     if (panelEl) {
       panelEl.classList.add("osint-visible");
@@ -48,9 +35,10 @@
     panelEl.innerHTML = getPanelHTML();
     document.body.appendChild(panelEl);
 
+    // Close button
     panelEl.querySelector("#osint-close").addEventListener("click", hidePanel);
 
-    // It is now declared directly in the HTML template below.
+    // Drag to resize
     initResize();
 
     setTimeout(() => panelEl.classList.add("osint-visible"), 10);
@@ -62,36 +50,17 @@
 
   function resetPanel() {
     setSection("osint-progress-section", true);
-    setSection("osint-result-section",   false);
-    setSection("osint-error-section",    false);
-
-    // Reseting progress bar and label
-    const bar = panelEl?.querySelector("#osint-progress-bar");
-    const lbl = panelEl?.querySelector("#osint-stage-label");
-    if (bar) bar.style.width = "0%";
-    if (lbl) lbl.textContent = "Initializing verification…";
-
-    // Hide claim preview
-    const preview = panelEl?.querySelector("#osint-claim-preview");
-    if (preview) { preview.style.display = "none"; preview.innerHTML = ""; }
-
-    // Hide mutation/cached
-    const mut = panelEl?.querySelector("#osint-mutation-alert");
-    if (mut) mut.style.display = "none";
-    const cached = panelEl?.querySelector("#osint-cached-badge");
-    if (cached) cached.style.display = "none";
+    setSection("osint-result-section", false);
+    setSection("osint-error-section", false);
+    updateProgress("Initializing verification…", 0);
   }
 
   function getPanelHTML() {
     return `
-      <!-- BUG FIX: resize handle declared here so it stays as a positioned
-           child of the panel, not breaking the flex column of panel-inner -->
-      <div id="osint-resize-handle"></div>
-
       <div id="osint-panel-inner">
         <div id="osint-header">
           <div id="osint-title">
-            <span class="osint-logo">🛡️</span>
+            <span class="osint-logo">🔍</span>
             <span>OSINT Verifier</span>
           </div>
           <button id="osint-close" title="Close">✕</button>
@@ -112,25 +81,27 @@
         <!-- Result Section -->
         <div id="osint-result-section" style="display:none">
 
+          <!-- Killer Screen: Verdict Badge -->
           <div id="osint-verdict-card">
             <div id="osint-verdict-badge"></div>
             <div id="osint-confidence-label"></div>
             <div id="osint-verdict-tag"></div>
           </div>
 
+          <!-- Mutation Alert -->
           <div id="osint-mutation-alert" style="display:none">
-            ⚠️ <strong>Mutation Detected:</strong>
-            <span id="osint-mutation-text"></span>
+            ⚠️ <strong>Mutation Detected:</strong> <span id="osint-mutation-text"></span>
           </div>
 
+          <!-- Support / Contradict Bar -->
           <div id="osint-support-bar-section">
             <div class="osint-bar-label">Support vs Contradict</div>
             <div class="osint-bar-wrap">
-              <div id="osint-support-fill"    class="osint-support-fill"></div>
+              <div id="osint-support-fill" class="osint-support-fill"></div>
               <div id="osint-contradict-fill" class="osint-contradict-fill"></div>
             </div>
             <div class="osint-bar-legend">
-              <span id="osint-support-pct"    class="osint-support-text"></span>
+              <span id="osint-support-pct" class="osint-support-text"></span>
               <span id="osint-contradict-pct" class="osint-contradict-text"></span>
             </div>
             <div id="osint-no-evidence-placeholder" style="display:none">
@@ -138,21 +109,25 @@
             </div>
           </div>
 
+          <!-- Top Insight -->
           <div id="osint-top-insight-section">
             <div class="osint-section-heading">💡 Top Insight</div>
             <div id="osint-top-insight"></div>
           </div>
 
+          <!-- LLM Explanation -->
           <div id="osint-explanation-section">
             <div class="osint-section-heading">📋 Explanation</div>
             <div id="osint-explanation"></div>
           </div>
 
+          <!-- Sub-Claim Breakdown -->
           <div id="osint-subclaims-section" style="display:none">
             <div class="osint-section-heading">🔀 Sub-Claim Breakdown</div>
             <div id="osint-subclaims-list"></div>
           </div>
 
+          <!-- Image Scan Results -->
           <div id="osint-image-section" style="display:none">
             <div class="osint-section-heading">🖼️ Image Scan</div>
             <div id="osint-image-ocr"></div>
@@ -160,11 +135,13 @@
             <div id="osint-image-context"></div>
           </div>
 
+          <!-- Top Sources -->
           <div id="osint-sources-section">
             <div class="osint-section-heading">📰 Sources</div>
             <div id="osint-sources-list"></div>
           </div>
 
+          <!-- Cached badge -->
           <div id="osint-cached-badge" style="display:none">⚡ Result from cache</div>
         </div>
 
@@ -178,7 +155,7 @@
     `;
   }
 
-  // ─── Verification ─────────────────────────────────────────────────────────────
+  // ─── Start Verification ─────────────────────────────────────────────────────
   async function startVerification(payload) {
     resetPanel();
 
@@ -188,27 +165,30 @@
       preview.textContent = `"${payload.claim.slice(0, 120)}${payload.claim.length > 120 ? "…" : ""}"`;
       preview.style.display = "block";
     } else if (payload.type === "image") {
-      preview.innerHTML = `<img src="${payload.imageUrl}" alt="Image to verify"
-        style="max-width:100%;border-radius:6px;margin-top:4px;">`;
+      preview.innerHTML = `<img src="${payload.imageUrl}" alt="Image to verify" style="max-width:100%;border-radius:6px;margin-top:8px;">`;
       preview.style.display = "block";
-    } else if (payload.type === "url") {
-      preview.textContent = `🔗 ${(payload.url || "").slice(0, 80)}…`;
+    } else {
+      preview.textContent = `URL: ${payload.url?.slice(0, 80)}…`;
       preview.style.display = "block";
     }
 
+    // Simulate UX buffer stages (FR-67 to FR-72)
     await simulateProgress();
+
+    // Call backend
     updateProgress("Contacting verification engine…", 80);
 
     let result;
-    try {
-      if (payload.type === "image") {
-        result = await chrome.runtime.sendMessage({ type: "VERIFY_IMAGE", payload });
-      } else {
-        result = await chrome.runtime.sendMessage({ type: "VERIFY_CLAIM", payload });
-      }
-    } catch (err) {
-      showError(`Could not reach background service: ${err.message}`);
-      return;
+    if (payload.type === "image") {
+      result = await chrome.runtime.sendMessage({
+        type: "VERIFY_IMAGE",
+        payload
+      });
+    } else {
+      result = await chrome.runtime.sendMessage({
+        type: "VERIFY_CLAIM",
+        payload
+      });
     }
 
     updateProgress("Verdict ready.", 100);
@@ -222,41 +202,41 @@
     renderResult(result.data, payload.type);
   }
 
+  // UX Buffer — simulate progress stream (FR-68)
   async function simulateProgress() {
     const stages = [
-      ["Parsing claim…",                    10],
-      ["Querying OSINT sources…",           25],
-      ["Checking fact databases…",          40],
-      ["Running NLI stance classifier…",    55],
-      ["Scoring evidence…",                 70],
-      ["Computing verdict…",                78],
+      ["Parsing claim…", 10],
+      ["Querying OSINT sources…", 25],
+      ["Checking fact databases…", 40],
+      ["Running NLI stance classifier…", 55],
+      ["Scoring evidence…", 70],
+      ["Computing verdict…", 78],
     ];
     for (const [label, pct] of stages) {
       updateProgress(label, pct);
-      await sleep(220 + Math.random() * 180);
+      await sleep(250 + Math.random() * 200);
     }
   }
 
-  // ─── Render Result ────────────────────────────────────────────────────────────
+  // ─── Render Result ──────────────────────────────────────────────────────────
   function renderResult(data, inputType) {
     setSection("osint-progress-section", false);
-    setSection("osint-result-section",   true);
-    setSection("osint-error-section",    false);
+    setSection("osint-result-section", true);
 
-    const verdict    = data.verdict               || "UNVERIFIED";
-    const conf       = data.confidence            ?? 0;
-    const tag        = data.verdict_reason_tag    || "";
-    const exp        = data.explanation           || "No explanation available.";
-    const insight    = data.top_insight           || "";
-    const cached     = data.cached                || false;
-    const mutation   = data.mutation_detected     || false;
-    const mutText    = data.mutation_description  || "";
-    const subclaims  = data.sub_claims            || [];
-    const sources    = data.sources               || [];
-    const suppPct    = data.support_bar?.support_pct    ?? null;
-    const contrPct   = data.support_bar?.contradict_pct ?? null;
-    const totalEv    = data.total_evidence_items  ?? -1;
-    const imgResult  = data.image_result          || null;
+    const verdict   = data.verdict || "UNVERIFIED";
+    const conf      = data.confidence ?? 0;
+    const tag       = data.verdict_reason_tag || "";
+    const exp       = data.explanation || "";
+    const insight   = data.top_insight || "";
+    const cached    = data.cached || false;
+    const mutation  = data.mutation_detected || false;
+    const mutText   = data.mutation_description || "";
+    const subclaims = data.sub_claims || [];
+    const sources   = data.sources || [];
+    const supportPct    = data.support_bar?.support_pct ?? null;
+    const contradictPct = data.support_bar?.contradict_pct ?? null;
+    const totalEvidence = data.total_evidence_items ?? -1;
+    const imageResult   = data.image_result || null;
 
     // Verdict badge
     const { emoji, cls } = verdictMeta(verdict);
@@ -268,13 +248,12 @@
 
     // Mutation alert
     if (mutation) {
-      const alert = panelEl.querySelector("#osint-mutation-alert");
-      alert.style.display = "flex";
+      panelEl.querySelector("#osint-mutation-alert").style.display = "flex";
       panelEl.querySelector("#osint-mutation-text").textContent = mutText;
     }
 
-    // Support bar
-    renderSupportBar(verdict, suppPct, contrPct, totalEv);
+    // Support bar (FR-157..160)
+    renderSupportBar(verdict, supportPct, contradictPct, totalEvidence);
 
     // Top insight
     if (insight) {
@@ -286,11 +265,15 @@
     // Explanation
     panelEl.querySelector("#osint-explanation").textContent = exp;
 
-    // Sub-claims
-    if (subclaims.length > 0) renderSubclaims(subclaims);
+    // Sub-claims (FR-73..78)
+    if (subclaims.length > 0) {
+      renderSubclaims(subclaims);
+    }
 
     // Image results
-    if (inputType === "image" && imgResult) renderImageResults(imgResult);
+    if (inputType === "image" && imageResult) {
+      renderImageResults(imageResult);
+    }
 
     // Sources
     renderSources(sources);
@@ -300,36 +283,29 @@
       panelEl.querySelector("#osint-cached-badge").style.display = "block";
     }
 
-    // Wire retry button (remove previous listener by cloning)
-    const retryBtn = panelEl.querySelector("#osint-retry-btn");
-    const newRetry = retryBtn.cloneNode(true);
-    retryBtn.replaceWith(newRetry);
-    newRetry.addEventListener("click", () => {
+    // Retry button
+    panelEl.querySelector("#osint-retry-btn")?.addEventListener("click", () => {
       if (currentPayload) startVerification(currentPayload);
     });
-
-    // Scroll panel back to top
-    const inner = panelEl.querySelector("#osint-panel-inner");
-    if (inner) inner.scrollTop = 0;
   }
 
-  // ─── Support Bar ──────────────────────────────────────────────────────────────
-  function renderSupportBar(verdict, suppPct, contrPct, totalEv) {
-    const noEvidence  = verdict === "UNVERIFIED" && totalEv === 0;
+  // ─── Support Bar ─────────────────────────────────────────────────────────────
+  function renderSupportBar(verdict, suppPct, contrPct, totalEvidence) {
+    const noEvidence = verdict === "UNVERIFIED" && totalEvidence === 0;
     const placeholder = panelEl.querySelector("#osint-no-evidence-placeholder");
-    const barWrap     = panelEl.querySelector(".osint-bar-wrap");
-    const legend      = panelEl.querySelector(".osint-bar-legend");
+    const barWrap = panelEl.querySelector(".osint-bar-wrap");
+    const legend = panelEl.querySelector(".osint-bar-legend");
 
     if (noEvidence || suppPct === null) {
-      barWrap.style.display       = "none";
-      legend.style.display        = "none";
-      placeholder.style.display   = "flex";
+      barWrap.style.display = "none";
+      legend.style.display = "none";
+      placeholder.style.display = "flex";
       return;
     }
 
     placeholder.style.display = "none";
-    barWrap.style.display     = "flex";
-    legend.style.display      = "flex";
+    barWrap.style.display = "flex";
+    legend.style.display = "flex";
 
     panelEl.querySelector("#osint-support-fill").style.width    = `${suppPct}%`;
     panelEl.querySelector("#osint-contradict-fill").style.width = `${contrPct}%`;
@@ -337,7 +313,7 @@
     panelEl.querySelector("#osint-contradict-pct").textContent  = `❌ Contradict ${contrPct}%`;
   }
 
-  // ─── Sub-Claims ───────────────────────────────────────────────────────────────
+  // ─── Sub-Claims ──────────────────────────────────────────────────────────────
   function renderSubclaims(subclaims) {
     const section = panelEl.querySelector("#osint-subclaims-section");
     const list    = panelEl.querySelector("#osint-subclaims-list");
@@ -350,28 +326,28 @@
       item.className = "osint-subclaim-item";
       item.innerHTML = `
         <span class="osint-sc-emoji">${emoji}</span>
-        <span class="osint-sc-text">${sc.claim_text || sc.text || ""}</span>
+        <span class="osint-sc-text">${sc.claim_text}</span>
         <span class="osint-sc-conf">${Math.round((sc.confidence || 0) * 100)}%</span>
       `;
       list.appendChild(item);
     });
   }
 
-  // ─── Image Results ────────────────────────────────────────────────────────────
+  // ─── Image Results ───────────────────────────────────────────────────────────
   function renderImageResults(imageResult) {
-    panelEl.querySelector("#osint-image-section").style.display = "block";
+    const section = panelEl.querySelector("#osint-image-section");
+    section.style.display = "block";
 
     const ocrEl = panelEl.querySelector("#osint-image-ocr");
     const revEl = panelEl.querySelector("#osint-image-reverse");
     const ctxEl = panelEl.querySelector("#osint-image-context");
 
     if (imageResult.ocr_text) {
-      ocrEl.innerHTML =
-        `<strong>Extracted Text (OCR):</strong><blockquote>${imageResult.ocr_text.slice(0, 300)}</blockquote>`;
+      ocrEl.innerHTML = `<strong>Extracted Text (OCR):</strong><blockquote>${imageResult.ocr_text.slice(0, 300)}</blockquote>`;
     }
 
     if (imageResult.reverse_search_matches?.length) {
-      revEl.innerHTML = "<strong>Reverse Image Matches:</strong>";
+      revEl.innerHTML = `<strong>Reverse Image Matches:</strong>`;
       imageResult.reverse_search_matches.slice(0, 3).forEach(m => {
         revEl.innerHTML += `<div class="osint-rev-match">
           <a href="${m.url}" target="_blank" rel="noopener">${m.title || m.url}</a>
@@ -382,13 +358,12 @@
 
     if (imageResult.context_mismatch) {
       ctxEl.innerHTML = `<div class="osint-mismatch-alert">
-        🕐 <strong>Context Mismatch:</strong>
-        ${imageResult.mismatch_description || "Image predates claimed event by 30+ days."}
+        🕐 <strong>Context Mismatch:</strong> ${imageResult.mismatch_description || "Image predates claimed event by 30+ days."}
       </div>`;
     }
   }
 
-  // ─── Sources ──────────────────────────────────────────────────────────────────
+  // ─── Sources ─────────────────────────────────────────────────────────────────
   function renderSources(sources) {
     const list = panelEl.querySelector("#osint-sources-list");
     list.innerHTML = "";
@@ -399,40 +374,36 @@
     }
 
     sources.slice(0, 5).forEach(src => {
-      const stanceIcon = src.stance === "SUPPORTING"
-        ? "✅" : src.stance === "CONTRADICTING" ? "❌" : "➖";
+      const item = document.createElement("div");
+      item.className = "osint-source-item";
+      const stanceIcon = src.stance === "SUPPORTING" ? "✅" : src.stance === "CONTRADICTING" ? "❌" : "➖";
       const shift = src.credibility_shift
         ? `<span class="osint-cred-shift">${src.credibility_shift > 0 ? "+" : ""}${src.credibility_shift.toFixed(2)}</span>`
         : "";
-      const item = document.createElement("div");
-      item.className = "osint-source-item";
       item.innerHTML = `
         <div class="osint-source-header">
           ${stanceIcon}
-          <a href="${src.url || "#"}" target="_blank" rel="noopener"
-             class="osint-source-name">${src.name || src.url || "Unknown"}</a>
+          <a href="${src.url}" target="_blank" rel="noopener" class="osint-source-name">${src.name || src.url}</a>
           ${shift}
         </div>
-        <div class="osint-source-snippet">${(src.snippet || "").slice(0, 120)}</div>
-        <div class="osint-source-meta">
-          Tier ${src.tier ?? "?"} · Credibility: ${((src.credibility ?? 0) * 100).toFixed(0)}%
-        </div>
+        <div class="osint-source-snippet">${(src.snippet || "").slice(0, 120)}…</div>
+        <div class="osint-source-meta">Tier ${src.tier ?? "?"} · Credibility: ${((src.credibility ?? 0) * 100).toFixed(0)}%</div>
       `;
       list.appendChild(item);
     });
   }
 
-  // ─── WebSocket Realtime ───────────────────────────────────────────────────────
+  // ─── WebSocket Realtime ──────────────────────────────────────────────────────
   function handleWsMessage(data) {
     if (data.stage) updateProgress(data.stage, data.progress ?? 50);
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────────
+  // ─── Utilities ───────────────────────────────────────────────────────────────
   function updateProgress(label, pct) {
-    const lbl = panelEl?.querySelector("#osint-stage-label");
+    const el = panelEl?.querySelector("#osint-stage-label");
     const bar = panelEl?.querySelector("#osint-progress-bar");
-    if (lbl) lbl.textContent   = label;
-    if (bar) bar.style.width   = `${pct}%`;
+    if (el) el.textContent = label;
+    if (bar) bar.style.width = `${pct}%`;
   }
 
   function setSection(id, visible) {
@@ -442,8 +413,8 @@
 
   function showError(msg) {
     setSection("osint-progress-section", false);
-    setSection("osint-result-section",   false);
-    setSection("osint-error-section",    true);
+    setSection("osint-result-section", false);
+    setSection("osint-error-section", true);
     const errEl = panelEl?.querySelector("#osint-error-msg");
     if (errEl) errEl.textContent = msg;
   }
@@ -461,29 +432,26 @@
 
   function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  // ─── Resize Handle ────────────────────────────────────────────────────────────
+  // ─── Resize Handle ───────────────────────────────────────────────────────────
   function initResize() {
-    const handle = panelEl.querySelector("#osint-resize-handle");
-    if (!handle) return;
+    const handle = document.createElement("div");
+    handle.id = "osint-resize-handle";
+    panelEl.appendChild(handle);
 
     let startX, startW;
-
     handle.addEventListener("mousedown", e => {
       startX = e.clientX;
       startW = panelEl.offsetWidth;
-      e.preventDefault();
-
-      const onDrag = e => {
-        const newW = Math.max(300, Math.min(700, startW - (e.clientX - startX)));
-        panelEl.style.width = `${newW}px`;
-      };
-      const onUp = () => {
-        document.removeEventListener("mousemove", onDrag);
-        document.removeEventListener("mouseup",  onUp);
-      };
       document.addEventListener("mousemove", onDrag);
-      document.addEventListener("mouseup",  onUp);
+      document.addEventListener("mouseup", () => {
+        document.removeEventListener("mousemove", onDrag);
+      }, { once: true });
     });
+
+    function onDrag(e) {
+      const newW = Math.max(300, Math.min(700, startW - (e.clientX - startX)));
+      panelEl.style.width = `${newW}px`;
+    }
   }
 
 })();
